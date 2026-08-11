@@ -3,6 +3,7 @@ package top.yunov.neteasy.player
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.util.Log
+import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -12,7 +13,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.io.IOException
 
 /**
  * 极简播放器控制器：
@@ -21,20 +21,14 @@ import java.io.IOException
  * - 播放：由外部（UI 层）先解析好可播放 URL 再调用 play()
  */
 class PlayerController(private val scope: CoroutineScope) {
-
     data class PlayerUiState(
         val isPlaying: Boolean = false,
         val song: PlayerSong? = null,
         val positionMs: Long = 0,
-        val durationMs: Long = 0,
+        val durationMs: Long = 0
     )
 
-    data class PlayerSong(
-        val id: Long,
-        val name: String,
-        val artists: String,
-        val picUrl: String,
-    )
+    data class PlayerSong(val id: Long, val name: String, val artists: String, val picUrl: String)
 
     private val _state = MutableStateFlow(PlayerUiState())
     val state: StateFlow<PlayerUiState> = _state.asStateFlow()
@@ -72,6 +66,8 @@ class PlayerController(private val scope: CoroutineScope) {
 
     fun seekTo(ms: Int) {
         mediaPlayer?.seekTo(ms)
+        // 立即同步 UI 进度：暂停时 ticker 不运行，且避免松手后滑块弹回旧位置
+        _state.value = _state.value.copy(positionMs = ms.toLong())
     }
 
     /** 完整停止：释放播放器并清空状态 */
@@ -92,17 +88,19 @@ class PlayerController(private val scope: CoroutineScope) {
         val p = MediaPlayer()
         try {
             p.setAudioAttributes(
-                AudioAttributes.Builder()
+                AudioAttributes
+                    .Builder()
                     .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                     .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .build(),
+                    .build()
             )
             p.setDataSource(url)
             p.setOnPreparedListener { mp ->
-                _state.value = _state.value.copy(
-                    isPlaying = true,
-                    durationMs = mp.duration.toLong(),
-                )
+                _state.value =
+                    _state.value.copy(
+                        isPlaying = true,
+                        durationMs = mp.duration.toLong()
+                    )
                 mp.start()
                 startProgressTicker()
             }
@@ -127,16 +125,18 @@ class PlayerController(private val scope: CoroutineScope) {
         progressJob?.cancel()
         progressJob = null
         val gen = ++tickerGeneration
-        progressJob = scope.launch(Dispatchers.Main) {
-            while (isActive && tickerGeneration == gen) {
-                val p = mediaPlayer ?: break
-                if (!p.isPlaying) break
-                _state.value = _state.value.copy(
-                    positionMs = p.currentPosition.toLong(),
-                    durationMs = p.duration.toLong(),
-                )
-                delay(500)
+        progressJob =
+            scope.launch(Dispatchers.Main) {
+                while (isActive && tickerGeneration == gen) {
+                    val p = mediaPlayer ?: break
+                    if (!p.isPlaying) break
+                    _state.value =
+                        _state.value.copy(
+                            positionMs = p.currentPosition.toLong(),
+                            durationMs = p.duration.toLong()
+                        )
+                    delay(500)
+                }
             }
-        }
     }
 }
