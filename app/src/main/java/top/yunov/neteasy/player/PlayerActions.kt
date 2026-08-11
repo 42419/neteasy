@@ -1,6 +1,16 @@
 package top.yunov.neteasy.player
 
 import top.yunov.neteasy.data.NcmRepository
+import top.yunov.neteasy.data.Song
+
+/** Song → PlayerController.PlayerSong（拼接歌手名） */
+fun Song.toPlayerSong(): PlayerController.PlayerSong =
+    PlayerController.PlayerSong(
+        id = id,
+        name = name,
+        artists = artists.joinToString(" / "),
+        picUrl = picUrl
+    )
 
 /**
  * 便捷扩展：按歌曲 id 解析可播放 URL 后播放。

@@ -16,13 +16,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -50,7 +49,7 @@ import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.Song
 import top.yunov.neteasy.player.PlayerController
-import top.yunov.neteasy.player.playSongById
+import top.yunov.neteasy.player.toPlayerSong
 
 /**
  * 搜索页：Expressive 大圆角搜索框 + 歌曲列表（Material 播放图标）。
@@ -120,26 +119,18 @@ fun SearchScreen(repository: NcmRepository, player: PlayerController, modifier: 
 
         if (searching) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+                WavyCircularLoadingIndicator()
             }
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(top = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                items(results, key = { it.id }) { song ->
+                itemsIndexed(results, key = { _, song -> song.id }) { index, song ->
                     SongRow(
                         song = song,
                         onClick = {
-                            scope.launch {
-                                player.playSongById(
-                                    repository,
-                                    song.id,
-                                    song.name,
-                                    song.artists,
-                                    song.picUrl
-                                )
-                            }
+                            player.playQueue(results.map { it.toPlayerSong() }, index)
                         }
                     )
                 }

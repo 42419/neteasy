@@ -11,6 +11,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,8 +26,10 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.sin
 
 /**
@@ -137,6 +140,72 @@ fun WaveProgressBar(progress: Float, onSeek: (Float) -> Unit, modifier: Modifier
 
         // 轨道末端的「停止指示点」，标记总时长的终点
         drawCircle(color = activeColor, radius = stopRadius, center = Offset(right, baseY))
+    }
+}
+
+/**
+ * MD3 Expressive「圆形波浪加载指示器」(Circular Wavy Progress Indicator, 不定进度版)：
+ * https://m3.material.io/components/progress-indicators/overview
+ * 用一段沿圆周起伏的正弦波描边弧线代替普通实心圆弧，弧线本身持续转动 + 波形持续流动。
+ * 用来统一替换 App 里原来的 [androidx.compose.material3.CircularProgressIndicator]。
+ */
+@Composable
+fun WavyCircularLoadingIndicator(
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.primary,
+    diameter: Dp = 40.dp
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "wavyCircular")
+    // 整段弧线持续旋转，模拟不定进度 spinner
+    val rotationDeg by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec =
+        infiniteRepeatable(
+            animation = tween(durationMillis = 1600, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "wavyCircularRotation"
+    )
+    // 波形沿弧线流动
+    val wavePhase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = (2 * PI).toFloat(),
+        animationSpec =
+        infiniteRepeatable(
+            animation = tween(durationMillis = 900, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "wavyCircularPhase"
+    )
+
+    Canvas(modifier = modifier.size(diameter)) {
+        val d = diameter.toPx()
+        val strokeWidthPx = d * 0.09f
+        val amplitude = d * 0.045f
+        val waveCount = 8 // 一整圈的波浪个数
+        val sweepDeg = 300f // 留出缺口，形似 M3 不定进度圆环
+        val baseRadius = d / 2f - strokeWidthPx / 2f - amplitude
+        val cx = d / 2f
+        val cy = d / 2f
+
+        val path = Path()
+        val totalSteps = 90
+        for (i in 0..totalSteps) {
+            val t = i / totalSteps.toFloat()
+            val angleDeg = rotationDeg + t * sweepDeg
+            val angleRad = (angleDeg * PI.toFloat() / 180f)
+            val r = baseRadius + amplitude * sin(t * waveCount * 2f * PI.toFloat() + wavePhase)
+            val x = cx + r * cos(angleRad)
+            val y = cy + r * sin(angleRad)
+            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+
+        drawPath(
+            path = path,
+            color = color,
+            style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
+        )
     }
 }
 

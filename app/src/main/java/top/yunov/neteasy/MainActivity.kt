@@ -114,7 +114,7 @@ private fun NcmApp() {
     val apiClient = remember { ApiClient(context) }
     val repository = remember { NcmRepository(apiClient) }
     val cookieStore = remember { apiClient.cookieStore }
-    val player = remember { PlayerController(scope) }
+    val player = remember { PlayerController(scope, repository) }
 
     // 组合销毁时释放 MediaPlayer，防 Activity 重建（旋转）泄漏音频资源
     DisposableEffect(player) {

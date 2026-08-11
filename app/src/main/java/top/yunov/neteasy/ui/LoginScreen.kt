@@ -18,7 +18,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -155,7 +154,7 @@ fun LoginScreen(repository: NcmRepository, onBack: () -> Unit, onLoggedIn: () ->
                     contentAlignment = Alignment.Center
                 ) {
                     when {
-                        loading -> CircularProgressIndicator()
+                        loading -> WavyCircularLoadingIndicator()
                         qrBitmap != null ->
                             Image(
                                 bitmap = qrBitmap!!.asImageBitmap(),

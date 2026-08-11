@@ -28,7 +28,6 @@ import androidx.compose.foundation.lazy.items as listItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -98,7 +97,7 @@ fun HomeScreen(repository: NcmRepository, onOpenPlaylist: (Long) -> Unit, modifi
     }
 
     when {
-        loading -> Centered(modifier) { CircularProgressIndicator() }
+        loading -> Centered(modifier) { WavyCircularLoadingIndicator() }
         error != null ->
             Centered(modifier) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
