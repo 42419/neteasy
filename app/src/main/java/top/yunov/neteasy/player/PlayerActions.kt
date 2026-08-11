@@ -11,18 +11,19 @@ suspend fun PlayerController.playSongById(
     id: Long,
     name: String,
     artists: List<String>,
-    picUrl: String,
+    picUrl: String
 ) {
-    val url = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-        repository.songUrl(id)
-    }
+    val url =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            repository.songUrl(id)
+        }
     play(
         url,
         PlayerController.PlayerSong(
             id = id,
             name = name,
             artists = artists.joinToString(" / "),
-            picUrl = picUrl,
-        ),
+            picUrl = picUrl
+        )
     )
 }

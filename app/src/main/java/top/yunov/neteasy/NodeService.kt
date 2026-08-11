@@ -23,7 +23,6 @@ import java.io.FileOutputStream
  * - 在独立线程启动 Node（native 桥内部再起线程），HTTP 服务监听 http://127.0.0.1:19800
  */
 class NodeService : Service() {
-
     companion object {
         private const val TAG = "NodeService"
         private const val CHANNEL_ID = "node_service"
@@ -78,17 +77,20 @@ class NodeService : Service() {
                 }
             )
         }
-        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("neteasy 后端服务")
-            .setContentText("Node.js 运行中（http://127.0.0.1:$PORT）")
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setOngoing(true)
-            .build()
-        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-        } else {
-            0
-        }
+        val notification: Notification =
+            NotificationCompat
+                .Builder(this, CHANNEL_ID)
+                .setContentTitle("neteasy 后端服务")
+                .setContentText("Node.js 运行中（http://127.0.0.1:$PORT）")
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setOngoing(true)
+                .build()
+        val type =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            } else {
+                0
+            }
         try {
             ServiceCompat.startForeground(this, NOTIF_ID, notification, type)
         } catch (e: RuntimeException) {
@@ -113,13 +115,11 @@ class NodeService : Service() {
             .apply()
     }
 
-    private fun lastApkUpdateTime(): Long {
-        return try {
-            packageManager.getPackageInfo(packageName, 0).lastUpdateTime
-        } catch (e: PackageManager.NameNotFoundException) {
-            Log.e(TAG, "getPackageInfo failed", e)
-            1L
-        }
+    private fun lastApkUpdateTime(): Long = try {
+        packageManager.getPackageInfo(packageName, 0).lastUpdateTime
+    } catch (e: PackageManager.NameNotFoundException) {
+        Log.e(TAG, "getPackageInfo failed", e)
+        1L
     }
 
     private fun copyAssetFolder(fromPath: String, target: File) {

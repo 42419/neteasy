@@ -4,11 +4,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** 首页轮播 Banner */
-data class Banner(
-    val picUrl: String,
-    val targetId: Long,
-    val typeTitle: String?,
-)
+data class Banner(val picUrl: String, val targetId: Long, val typeTitle: String?)
 
 /** 歌单（推荐页 / 详情） */
 data class Playlist(
@@ -16,7 +12,7 @@ data class Playlist(
     val name: String,
     val coverUrl: String,
     val playCount: Long = 0,
-    val trackCount: Int = 0,
+    val trackCount: Int = 0
 )
 
 /** 歌曲 */
@@ -26,13 +22,12 @@ data class Song(
     val artists: List<String>,
     val album: String = "",
     val picUrl: String = "", // 歌曲封面（歌单内歌曲通常无，用歌单封面兜底）
-    val duration: Long = 0,
+    val duration: Long = 0
 )
 
 // ---------- JSON 解析 ----------
 
 object JsonParser {
-
     fun parseBanners(root: JSONObject): List<Banner> {
         val arr = root.optJSONArray("banners") ?: return emptyList()
         return (0 until arr.length()).mapNotNull { i ->
@@ -42,7 +37,7 @@ object JsonParser {
             Banner(
                 picUrl = pic,
                 targetId = o.optLong("targetId"),
-                typeTitle = o.optString("typeTitle").takeIf { it.isNotBlank() },
+                typeTitle = o.optString("typeTitle").takeIf { it.isNotBlank() }
             )
         }
     }
@@ -59,7 +54,7 @@ object JsonParser {
                 name = name,
                 coverUrl = o.optString("picUrl"),
                 playCount = o.optLong("playCount"),
-                trackCount = o.optInt("trackCount"),
+                trackCount = o.optInt("trackCount")
             )
         }
     }
@@ -74,7 +69,7 @@ object JsonParser {
             name = name,
             coverUrl = p.optString("coverImgUrl"),
             playCount = p.optLong("playCount"),
-            trackCount = p.optInt("trackCount"),
+            trackCount = p.optInt("trackCount")
         )
     }
 
@@ -100,8 +95,9 @@ object JsonParser {
         val id = o.optLong("id")
         val name = o.optString("name")
         if (id == 0L || name.isEmpty()) return null
-        val artists = parseNames(o.optJSONArray("ar"))
-            .ifEmpty { parseNames(o.optJSONArray("artists")) }
+        val artists =
+            parseNames(o.optJSONArray("ar"))
+                .ifEmpty { parseNames(o.optJSONArray("artists")) }
         // 专辑封面：搜索接口在 al 里；歌单接口没有
         var pic = ""
         var album = ""
@@ -116,7 +112,7 @@ object JsonParser {
             artists = artists,
             album = album,
             picUrl = pic,
-            duration = o.optLong("dt"),
+            duration = o.optLong("dt")
         )
     }
 
@@ -134,13 +130,14 @@ object JsonParser {
      */
     fun parseSongDetailCovers(root: JSONObject): Map<Long, String> {
         val arr = root.optJSONArray("songs") ?: return emptyMap()
-        return (0 until arr.length()).mapNotNull { i ->
-            val o = arr.optJSONObject(i) ?: return@mapNotNull null
-            val id = o.optLong("id")
-            if (id == 0L) return@mapNotNull null
-            val pic = o.optJSONObject("al")?.optString("picUrl")?.takeIf { it.isNotBlank() }
-            if (pic == null) null else id to pic
-        }.toMap()
+        return (0 until arr.length())
+            .mapNotNull { i ->
+                val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                val id = o.optLong("id")
+                if (id == 0L) return@mapNotNull null
+                val pic = o.optJSONObject("al")?.optString("picUrl")?.takeIf { it.isNotBlank() }
+                if (pic == null) null else id to pic
+            }.toMap()
     }
 
     /** /song/url/v1 返回可播放 URL，无则返回 null（VIP/无版权） */

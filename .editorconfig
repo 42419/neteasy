@@ -1,0 +1,16 @@
+# 统一代码风格（ktlint / IDE）
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+
+[*.{kt,kts}]
+indent_size = 4
+max_line_length = 120
+ktlint_code_style = android_studio
+# ktlint 1.5 起 function-naming 不再豁免 @Composable（违反 Compose 大写惯例），显式豁免
+ktlint_function_naming_ignore_when_annotated_with = Composable,Preview

@@ -9,7 +9,6 @@ import android.util.Log
  *   Java_top_yunov_neteasy_NodeJS_startNodeWithArguments
  */
 object NodeJS {
-
     private const val TAG = "NodeJS"
 
     init {
