@@ -18,32 +18,35 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import kotlin.math.PI
 import kotlin.math.sin
 
 /**
- * MD3 Expressive 波浪式进度条：
- * 已播放部分以两层流动的正弦波填充，未播放部分为浅色轨道；
- * 支持点击 / 拖动跳转（拖动中实时预览，松手才 seek）。
+ * MD3 Expressive「波浪形进度指示器」(Wavy Progress Indicator)：
+ * https://m3.material.io/components/progress-indicators/overview
+ *
+ * 已播放部分是一条流动的正弦波描边线，未播放部分是一条细直线轨道，
+ * 两者中间留一道小间隙；轨道最末端有一个小圆点（stop indicator），
+ * 标记整条轨道的终点。支持点击 / 拖动跳转（拖动中实时预览，松手才 seek）。
  */
 @Composable
 fun WaveProgressBar(progress: Float, onSeek: (Float) -> Unit, modifier: Modifier = Modifier, playing: Boolean = true) {
     val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
-    val waveColor = MaterialTheme.colorScheme.primary
+    val activeColor = MaterialTheme.colorScheme.primary
 
     // 拖动中的位置；-1 表示未在拖动
     var dragFraction by remember { mutableFloatStateOf(-1f) }
     val shown = if (dragFraction >= 0f) dragFraction else progress.coerceIn(0f, 1f)
 
-    // 波浪流动动画：仅播放时流动，暂停时静止（省电）
+    // 波浪流动动画：仅播放时流动，暂停时静止（省电，同时形状保持波浪不塌成直线）
     val phase by if (playing) {
         val transition = rememberInfiniteTransition(label = "wave")
         transition.animateFloat(
@@ -51,7 +54,7 @@ fun WaveProgressBar(progress: Float, onSeek: (Float) -> Unit, modifier: Modifier
             targetValue = (2 * PI).toFloat(),
             animationSpec =
             infiniteRepeatable(
-                animation = tween(durationMillis = 1800, easing = LinearEasing),
+                animation = tween(durationMillis = 1400, easing = LinearEasing),
                 repeatMode = RepeatMode.Restart
             ),
             label = "wavePhase"
@@ -64,7 +67,7 @@ fun WaveProgressBar(progress: Float, onSeek: (Float) -> Unit, modifier: Modifier
         modifier =
         modifier
             .fillMaxWidth()
-            .height(36.dp)
+            .height(32.dp)
             .pointerInput(Unit) {
                 detectTapGestures { offset ->
                     onSeek((offset.x / size.width).coerceIn(0f, 1f))
@@ -89,68 +92,89 @@ fun WaveProgressBar(progress: Float, onSeek: (Float) -> Unit, modifier: Modifier
             }
     ) {
         val w = size.width
-        val h = size.height
-        val radius = CornerRadius(h / 2f, h / 2f)
-        val thumbRadius = h * 0.34f
+        val baseY = size.height / 2f
 
-        // 轨道
-        drawRoundRect(color = trackColor, cornerRadius = radius)
+        val strokeWidthPx = 4.dp.toPx()
+        val amplitude = 3.dp.toPx()
+        val wavelength = 18.dp.toPx()
+        val gap = 6.dp.toPx()
+        val stopRadius = 2.5.dp.toPx()
+        // 两端各留出半个描边宽度 + 停止点半径，避免圆头 / 圆点被裁切
+        val inset = strokeWidthPx / 2f + stopRadius + 2.dp.toPx()
 
-        val filledW = w * shown
-        if (filledW > 0f) {
-            clipRect(right = filledW) {
-                // 两层波浪错位叠加，营造立体流动感
-                drawWave(
-                    phase = phase,
-                    color = waveColor,
-                    alpha = 0.45f,
-                    phaseSpeed = 1f,
-                    ampRatio = 0.22f,
-                    verticalShift = -h * 0.06f
-                )
-                drawWave(
-                    phase = phase,
-                    color = waveColor,
-                    alpha = 0.95f,
-                    phaseSpeed = 1.6f,
-                    ampRatio = 0.15f,
-                    verticalShift = 0f
-                )
-            }
+        val left = inset
+        val right = (w - inset).coerceAtLeast(left)
+        val usableWidth = right - left
+
+        val filledX = left + usableWidth * shown
+        val activeEndX = (filledX - gap / 2f).coerceIn(left, right)
+        val trackStartX = (filledX + gap / 2f).coerceIn(left, right)
+
+        // 未播放部分：细直线轨道
+        if (trackStartX < right) {
+            drawLine(
+                color = trackColor,
+                start = Offset(trackStartX, baseY),
+                end = Offset(right, baseY),
+                strokeWidth = strokeWidthPx,
+                cap = StrokeCap.Round
+            )
         }
 
-        // 圆形拇指
-        drawCircle(
-            color = waveColor,
-            radius = thumbRadius,
-            center = Offset(filledW.coerceIn(thumbRadius, w - thumbRadius), h / 2f)
-        )
+        // 已播放部分：流动的波浪描边线
+        if (activeEndX > left) {
+            drawWavyStroke(
+                fromX = left,
+                toX = activeEndX,
+                baseY = baseY,
+                amplitude = amplitude,
+                wavelength = wavelength,
+                phase = phase,
+                color = activeColor,
+                strokeWidthPx = strokeWidthPx
+            )
+        }
+
+        // 轨道末端的「停止指示点」，标记总时长的终点
+        drawCircle(color = activeColor, radius = stopRadius, center = Offset(right, baseY))
     }
 }
 
-/** 绘制一条正弦波填充（从波峰到底部闭合），宽度铺满整个画布 */
-private fun DrawScope.drawWave(
+/** 沿 [fromX, toX] 画一条正弦波描边线（圆头线帽），y 基线为 [baseY] */
+private fun DrawScope.drawWavyStroke(
+    fromX: Float,
+    toX: Float,
+    baseY: Float,
+    amplitude: Float,
+    wavelength: Float,
     phase: Float,
     color: Color,
-    alpha: Float,
-    phaseSpeed: Float,
-    ampRatio: Float,
-    verticalShift: Float
+    strokeWidthPx: Float
 ) {
-    val amp = size.height * ampRatio
-    val baseY = size.height / 2f + verticalShift
-    val waveLen = size.width / 1.7f
-    val endX = size.width
     val path = Path()
-    path.moveTo(0f, size.height)
-    var x = 0f
-    val step = 6f
-    while (x <= endX) {
-        val y = baseY + sin((x / waveLen) * (2 * PI).toFloat() + phase * phaseSpeed) * amp
-        path.lineTo(x, y)
+    val step = 4f
+    var x = fromX
+    var first = true
+    while (x < toX) {
+        val y = baseY + sin((x / wavelength) * (2 * PI).toFloat() + phase) * amplitude
+        if (first) {
+            path.moveTo(x, y)
+            first = false
+        } else {
+            path.lineTo(x, y)
+        }
         x += step
     }
-    path.lineTo(endX, size.height)
-    path.close()
-    drawPath(path = path, color = color.copy(alpha = alpha))
+    val yEnd = baseY + sin((toX / wavelength) * (2 * PI).toFloat() + phase) * amplitude
+    if (first) {
+        // fromX >= toX 的极端情况：画一个点，避免空 Path
+        path.moveTo(toX, yEnd)
+    }
+    path.lineTo(toX, yEnd)
+
+    drawPath(
+        path = path,
+        color = color,
+        style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
+    )
 }

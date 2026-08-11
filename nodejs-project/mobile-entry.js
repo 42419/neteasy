@@ -57,21 +57,38 @@ async function prewarmXeapiKey() {
   }
 }
 
-prewarmXeapiKey()
-  .then(() => require('./generateConfig')())
-  .catch((err) => {
-    console.error('[mobile-entry] generateConfig failed:', err && err.message)
-  })
-  .finally(() => {
-    try {
-      const { serveNcmApi } = require('./server')
-      serveNcmApi({
-        checkVersion: false, // 绕开 child_process.exec（nodejs-mobile 不支持子进程）
-        port: 19800,
-        host: '127.0.0.1', // 只绑本机，不暴露局域网
-      })
-    } catch (err) {
-      // 模块加载异常（如 tmpdir 不可写）不能让它击穿 promise 链导致进程崩溃
-      console.error('[mobile-entry] server load failed:', err && err.stack)
-    }
-  })
+/**
+ * 启动 HTTP 服务。构建 Express app + 注册路由 + listen 都是本地操作，
+ * 不依赖 generateConfig 的网络请求结果，因此可以和 generateConfig 并行跑，
+ * 而不必等它先完成——省下一整段串行网络往返，端口更快可用。
+ * （global.cnIp 是 generateConfig 里最先同步执行的一行，几乎立即就绪；
+ * anonymous_token / xeapi_public_key 由 generateConfig 异步写盘，
+ * 若极早期的个别请求抢在它写完之前到达，客户端重试即可，不影响正确性。）
+ */
+function startServer() {
+  try {
+    const { serveNcmApi } = require('./server')
+    serveNcmApi({
+      checkVersion: false, // 绕开 child_process.exec（nodejs-mobile 不支持子进程）
+      port: 19800,
+      host: '127.0.0.1', // 只绑本机，不暴露局域网
+    })
+  } catch (err) {
+    // 模块加载异常（如 tmpdir 不可写）不能让它击穿调用方导致进程崩溃
+    console.error('[mobile-entry] server load failed:', err && err.stack)
+  }
+}
+
+prewarmXeapiKey().finally(() => {
+  // 注意：require('./generateConfig') 本身会同步加载全部业务模块
+  // （含 server.js），这段同步耗时无法避免、也无需并行；
+  // 真正能省下的是它内部两个 await 网络请求的等待时间——
+  // 调用它拿到 Promise 后不 await，让 HTTP 服务立即开始监听。
+  const configReady = require('./generateConfig')()
+  startServer()
+  configReady
+    .then(() => console.log('[mobile-entry] anonymous token / xeapi key ready'))
+    .catch((err) => {
+      console.error('[mobile-entry] generateConfig failed:', err && err.message)
+    })
+})
