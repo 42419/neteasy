@@ -1,12 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  本机 Node 后端走明文 HTTP（http://127.0.0.1:19800）。
-  Android 17+ 对 localhost 默认豁免明文，但 Android 9–16 必须显式放行，
-  否则 HttpURLConnection / OkHttp / WebView 会被 network security policy 拦截。
+  1) 本机 Node 后端走明文 HTTP（http://127.0.0.1:19800）。
+     Android 17+ 对 localhost 默认豁免明文，但 Android 9–16 必须显式放行。
+  2) 网易云图片/音频 CDN 部分为明文 HTTP（banner 图 p1.music.126.net、
+     歌曲流 m7.music.126.net），Coil / MediaPlayer 加载时需要放行。
 -->
 <network-security-config>
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="false">127.0.0.1</domain>
         <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">music.126.net</domain>
+        <domain includeSubdomains="true">music.163.com</domain>
     </domain-config>
 </network-security-config>
