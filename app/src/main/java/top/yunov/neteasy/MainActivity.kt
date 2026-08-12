@@ -4,11 +4,18 @@ import android.Manifest
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -215,8 +222,22 @@ private fun NcmApp(
         }
     }
 
+    // 系统返回键/手势：优先关闭最上层的覆盖层，而不是直接退出 App
+    BackHandler(enabled = showSettings) { showSettings = false }
+    BackHandler(enabled = showLogin) { showLogin = false }
+    BackHandler(enabled = currentPlaylistId != null) { currentPlaylistId = null }
+
+    // Material/Android 默认页面转场：标准 300ms + FastOutSlowInEasing（tween 默认曲线），
+    // 无弹簧过冲——右侧滑入淡入进入，原路滑出淡出退出，就是系统级最朴素的 push/pop 效果。
+    val defaultEnter =
+        fadeIn(tween(300)) +
+            slideInHorizontally(tween(300)) { it / 3 }
+    val defaultExit =
+        fadeOut(tween(300)) +
+            slideOutHorizontally(tween(300)) { it / 3 }
+
     // 设置页覆盖层
-    if (showSettings) {
+    AnimatedVisibility(visible = showSettings, enter = defaultEnter, exit = defaultExit) {
         SettingsScreen(
             themeMode = themeMode,
             onThemeModeChange = onThemeModeChange,
@@ -227,8 +248,8 @@ private fun NcmApp(
         )
     }
 
-    // 登录页覆盖层（登录成功后刷新“我的”页登录态）
-    if (showLogin) {
+    // 登录页覆盖层
+    AnimatedVisibility(visible = showLogin, enter = defaultEnter, exit = defaultExit) {
         LoginScreen(
             repository = repository,
             onBack = { showLogin = false },
@@ -239,15 +260,18 @@ private fun NcmApp(
         )
     }
 
-    // 歌单详情作为覆盖层
-    val playlistId = currentPlaylistId
-    if (playlistId != null) {
-        PlaylistScreen(
-            playlistId = playlistId,
-            repository = repository,
-            player = player,
-            onBack = { currentPlaylistId = null }
-        )
+    // 歌单详情作为覆盖层：关闭时 currentPlaylistId 会先变 null，用 displayedPlaylistId 记住
+    // 最后一次的 id，让退出动画播放期间 PlaylistScreen 仍能拿到有效 id（不会中途白屏）。
+    var displayedPlaylistId by remember { mutableStateOf<Long?>(null) }
+    currentPlaylistId?.let { displayedPlaylistId = it }
+    AnimatedVisibility(visible = currentPlaylistId != null, enter = defaultEnter, exit = defaultExit) {
+        displayedPlaylistId?.let { id ->
+            PlaylistScreen(
+                playlistId = id,
+                repository = repository,
+                player = player,
+                onBack = { currentPlaylistId = null }
+            )
+        }
     }
-
 }
