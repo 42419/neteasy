@@ -9,7 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -28,12 +28,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.invisibleToUser
+import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.launch
 import top.yunov.neteasy.data.ApiClient
 import top.yunov.neteasy.data.NcmRepository
+import top.yunov.neteasy.data.SettingsStore
+import top.yunov.neteasy.data.ThemeMode
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.ui.HomeScreen
 import top.yunov.neteasy.ui.LoginScreen
@@ -42,6 +44,8 @@ import top.yunov.neteasy.ui.NavState
 import top.yunov.neteasy.ui.PlaylistScreen
 import top.yunov.neteasy.ui.ProfileScreen
 import top.yunov.neteasy.ui.SearchScreen
+import top.yunov.neteasy.ui.SettingsScreen
+import top.yunov.neteasy.ui.theme.ExpressiveMotion
 import top.yunov.neteasy.ui.theme.NeteasyTheme
 
 /**
@@ -55,8 +59,29 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            NeteasyTheme {
-                NcmApp()
+            // 设置状态提升到主题之上：切换深色模式/动态取色立即生效（SharedPreferences 持久化）
+            val settings = remember { SettingsStore(applicationContext) }
+            var themeMode by remember { mutableStateOf(settings.themeMode) }
+            var dynamicColor by remember { mutableStateOf(settings.dynamicColor) }
+            val darkTheme =
+                when (themeMode) {
+                    ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                    ThemeMode.LIGHT -> false
+                    ThemeMode.DARK -> true
+                }
+            NeteasyTheme(darkTheme = darkTheme, dynamicColor = dynamicColor) {
+                NcmApp(
+                    themeMode = themeMode,
+                    onThemeModeChange = {
+                        settings.themeMode = it
+                        themeMode = it
+                    },
+                    dynamicColor = dynamicColor,
+                    onDynamicColorChange = {
+                        settings.dynamicColor = it
+                        dynamicColor = it
+                    }
+                )
             }
         }
     }
@@ -75,7 +100,8 @@ enum class Screen { HOME, SEARCH, PROFILE }
 private fun TabHost(visible: Boolean, content: @Composable () -> Unit) {
     val alpha by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
-        animationSpec = tween(200),
+        // 透明度属于 effects 弹簧：无过冲（MD3 Expressive 规范）
+        animationSpec = ExpressiveMotion.EffectsFast,
         label = "tabAlpha"
     )
     Box(
@@ -84,7 +110,7 @@ private fun TabHost(visible: Boolean, content: @Composable () -> Unit) {
             .fillMaxSize()
             .zIndex(if (visible) 2f else 1f)
             .alpha(alpha)
-            .then(if (visible) Modifier else Modifier.semantics { invisibleToUser() })
+            .then(if (visible) Modifier else Modifier.semantics { hideFromAccessibility() })
     ) {
         content()
         // 隐藏时铺一层透明“挡板”，吃掉所有指针事件，避免误触下层页面
@@ -106,7 +132,12 @@ private fun TabHost(visible: Boolean, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun NcmApp() {
+private fun NcmApp(
+    themeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
+    dynamicColor: Boolean = true,
+    onDynamicColorChange: (Boolean) -> Unit = {}
+) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -122,9 +153,13 @@ private fun NcmApp() {
     }
 
     // 导航状态
+    // 动态取色仅 Android 12+ 可用（系统壁纸色提取）
+    val dynamicColorSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+
     var screen by remember { mutableStateOf(Screen.HOME) }
     var currentPlaylistId by remember { mutableStateOf<Long?>(null) }
     var showLogin by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
     var profileRefreshKey by remember { mutableIntStateOf(0) }
 
     // Android 13+ 通知权限（前台服务通知可见）
@@ -173,10 +208,23 @@ private fun NcmApp() {
                     cookieStore = cookieStore,
                     refreshKey = profileRefreshKey,
                     onLoginClick = { showLogin = true },
+                    onOpenSettings = { showSettings = true },
                     modifier = Modifier.fillMaxSize()
                 )
             }
         }
+    }
+
+    // 设置页覆盖层
+    if (showSettings) {
+        SettingsScreen(
+            themeMode = themeMode,
+            onThemeModeChange = onThemeModeChange,
+            dynamicColor = dynamicColor,
+            dynamicColorSupported = dynamicColorSupported,
+            onDynamicColorChange = onDynamicColorChange,
+            onBack = { showSettings = false }
+        )
     }
 
     // 登录页覆盖层（登录成功后刷新“我的”页登录态）
@@ -201,4 +249,5 @@ private fun NcmApp() {
             onBack = { currentPlaylistId = null }
         )
     }
+
 }

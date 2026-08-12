@@ -36,9 +36,10 @@ val Typography =
         headlineLarge =
         TextStyle(
             fontFamily = FontFamily.Default,
-            fontWeight = FontWeight.Bold,
-            fontSize = 32.sp,
-            lineHeight = 40.sp,
+            // 强调排版：加重字重引导注意力（MD3 Expressive）
+            fontWeight = FontWeight.Black,
+            fontSize = 34.sp,
+            lineHeight = 42.sp,
             letterSpacing = 0.sp
         ),
         headlineMedium =

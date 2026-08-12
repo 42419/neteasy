@@ -1,8 +1,6 @@
 package top.yunov.neteasy.ui
 
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -25,9 +23,10 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items as listItems
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.CircularWavyProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -53,12 +52,14 @@ import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.Banner
 import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.Playlist
+import top.yunov.neteasy.ui.theme.ExpressiveMotion
 
 /**
  * 首页：MD3 Expressive 大标题 + Banner 轮播 + 推荐歌单卡片。
  * 数据来自本地 Node 后端 /banner 与 /personalized。
  * 冷启动时 Node 可能未就绪：失败后自动重试 5 次（间隔 2s）。
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HomeScreen(repository: NcmRepository, onOpenPlaylist: (Long) -> Unit, modifier: Modifier = Modifier) {
     var banners by remember { mutableStateOf<List<Banner>>(emptyList()) }
@@ -97,7 +98,8 @@ fun HomeScreen(repository: NcmRepository, onOpenPlaylist: (Long) -> Unit, modifi
     }
 
     when {
-        loading -> Centered(modifier) { WavyCircularLoadingIndicator() }
+        // 首页冷启动可能超过 5s（Node 后端启动 + 重试）→ 按规范用进度指示器（长等待）
+        loading -> Centered(modifier) { CircularWavyProgressIndicator() }
         error != null ->
             Centered(modifier) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -115,7 +117,8 @@ fun HomeScreen(repository: NcmRepository, onOpenPlaylist: (Long) -> Unit, modifi
             ) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Column(modifier = Modifier.padding(bottom = 4.dp)) {
-                        Text("发现音乐", style = MaterialTheme.typography.headlineMedium)
+                        // 强调排版 hero：大标题引导注意力（MD3 Expressive）
+                        Text("发现音乐", style = MaterialTheme.typography.headlineLarge)
                         Text(
                             "为你推荐",
                             style = MaterialTheme.typography.bodyMedium,
@@ -164,7 +167,7 @@ private fun BannerStrip(banners: List<Banner>) {
                     Modifier
                         .width(bannerWidth)
                         .aspectRatio(2f)
-                        .clip(RoundedCornerShape(24.dp)),
+                        .clip(MaterialTheme.shapes.extraLarge),
                     contentScale = ContentScale.Crop
                 )
             }
@@ -179,11 +182,8 @@ private fun PlaylistCard(playlist: Playlist, onClick: () -> Unit) {
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.96f else 1f,
-        animationSpec =
-        spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
+        // spatial spring：按压回弹有过冲
+        animationSpec = ExpressiveMotion.SpatialFast,
         label = "playlistCardScale"
     )
     Column(
@@ -192,7 +192,7 @@ private fun PlaylistCard(playlist: Playlist, onClick: () -> Unit) {
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
-            }.clip(RoundedCornerShape(24.dp))
+            }.clip(MaterialTheme.shapes.large)
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
     ) {

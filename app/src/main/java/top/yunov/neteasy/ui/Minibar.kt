@@ -1,24 +1,22 @@
 package top.yunov.neteasy.ui
 
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -38,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import top.yunov.neteasy.Screen
 import top.yunov.neteasy.player.PlayerController
+import top.yunov.neteasy.ui.theme.ExpressiveMotion
 
 /** 导航状态（由 NcmApp 提供） */
 data class NavState(val screen: Screen, val onNavigate: (Screen) -> Unit)
@@ -63,8 +62,8 @@ fun Minibar(state: PlayerController.PlayerUiState, onToggle: () -> Unit, onSeek:
                     shadowElevation = 8.dp
                 ) {
                     Column(modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) {
-                        // 波浪式进度条
-                        WaveProgressBar(
+                        // 波浪式进度条（官方 LinearWavyProgressIndicator + 拖动 seek）
+                        SeekWaveProgressBar(
                             progress =
                             if (state.durationMs > 0) {
                                 state.positionMs.toFloat() / state.durationMs
@@ -74,7 +73,7 @@ fun Minibar(state: PlayerController.PlayerUiState, onToggle: () -> Unit, onSeek:
                             onSeek = { fraction ->
                                 onSeek((fraction * state.durationMs).toInt())
                             },
-                            playing = state.isPlaying,
+                            animating = state.isPlaying,
                             modifier = Modifier.padding(horizontal = 16.dp)
                         )
 
@@ -91,7 +90,7 @@ fun Minibar(state: PlayerController.PlayerUiState, onToggle: () -> Unit, onSeek:
                                 modifier =
                                 Modifier
                                     .size(44.dp)
-                                    .clip(RoundedCornerShape(14.dp)),
+                                    .clip(MaterialTheme.shapes.small),
                                 contentScale = ContentScale.Crop
                             )
                             Column(
@@ -149,36 +148,40 @@ fun Minibar(state: PlayerController.PlayerUiState, onToggle: () -> Unit, onSeek:
     }
 }
 
-/** 弹性播放/暂停键（MD3 Expressive spring 动效 + Material 图标） */
+/** 弹性播放/暂停键（MD3 Expressive spring 动效 + 官方 FilledTonalIconButton） */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun PlayButton(isPlaying: Boolean, onClick: () -> Unit) {
     val scale by animateFloatAsState(
         targetValue = if (isPlaying) 1.12f else 1f,
-        animationSpec =
-        spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
+        // spatial spring：位移/尺寸变化有过冲（MD3 Expressive）
+        animationSpec = ExpressiveMotion.SpatialFast,
         label = "playButtonScale"
     )
     Box(
         modifier =
         Modifier
-            .size(48.dp)
+            .size(52.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
-            }.clip(CircleShape)
-            .background(MaterialTheme.colorScheme.primaryContainer)
-            .clickable(onClick = onClick),
+            },
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-            contentDescription = if (isPlaying) "暂停" else "播放",
-            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-            modifier = Modifier.size(26.dp)
-        )
+        FilledTonalIconButton(
+            onClick = onClick,
+            colors =
+            filledTonalIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        ) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                contentDescription = if (isPlaying) "暂停" else "播放",
+                modifier = Modifier.size(26.dp)
+            )
+        }
     }
 }
 

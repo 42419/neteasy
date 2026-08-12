@@ -2,7 +2,9 @@ package top.yunov.neteasy.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -76,6 +78,13 @@ private val DarkColorScheme =
         outlineVariant = DarkOutlineVariant
     )
 
+/**
+ * MD3 Expressive 主题入口：
+ * 使用官方 [MaterialExpressiveTheme] + 官方 expressive [MotionScheme]，
+ * 让 21 个内置 Material 组件（按钮、导航栏、卡片等）自动获得 spring 物理动效，
+ * 与自定义组件的 [ExpressiveMotion] token 风格一致。
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun NeteasyTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -93,8 +102,9 @@ fun NeteasyTheme(
             else -> LightColorScheme
         }
 
-    MaterialTheme(
+    MaterialExpressiveTheme(
         colorScheme = colorScheme,
+        motionScheme = MotionScheme.expressive(),
         typography = Typography,
         shapes = Shapes,
         content = content

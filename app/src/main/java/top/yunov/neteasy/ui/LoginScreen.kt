@@ -13,14 +13,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -41,8 +41,10 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.NcmRepository
+import top.yunov.neteasy.ui.theme.ButtonShape
 
 /** 登录页二维码来源：base64 data url 由后端 /login/qr/create?qrimg=true 生成 */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun LoginScreen(repository: NcmRepository, onBack: () -> Unit, onLoggedIn: () -> Unit) {
     var qrBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
@@ -119,13 +121,8 @@ fun LoginScreen(repository: NcmRepository, onBack: () -> Unit, onLoggedIn: () ->
                     .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(
-                    onClick = onBack,
-                    modifier =
-                    Modifier
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                ) {
+                // 官方 FilledTonalIconButton：自带容器 + Expressive spring 动效
+                FilledTonalIconButton(onClick = onBack) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                 }
                 Text(
@@ -148,13 +145,14 @@ fun LoginScreen(repository: NcmRepository, onBack: () -> Unit, onLoggedIn: () ->
                     modifier =
                     Modifier
                         .size(250.dp)
-                        .clip(RoundedCornerShape(28.dp))
+                        .clip(MaterialTheme.shapes.extraLarge)
                         .background(MaterialTheme.colorScheme.surfaceContainerLow)
                         .padding(14.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     when {
-                        loading -> WavyCircularLoadingIndicator()
+                        // 二维码生成是短等待 → 用官方形状 morph 加载指示器
+                        loading -> LoadingIndicator()
                         qrBitmap != null ->
                             Image(
                                 bitmap = qrBitmap!!.asImageBitmap(),
@@ -178,7 +176,7 @@ fun LoginScreen(repository: NcmRepository, onBack: () -> Unit, onLoggedIn: () ->
 
                 FilledTonalButton(
                     onClick = { refreshKey++ },
-                    shape = RoundedCornerShape(20.dp)
+                    shape = ButtonShape
                 ) {
                     Icon(
                         Icons.Filled.Refresh,

@@ -2,6 +2,7 @@ package top.yunov.neteasy.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -22,8 +22,10 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -47,17 +49,20 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.CookieStore
 import top.yunov.neteasy.data.NcmRepository
+import top.yunov.neteasy.ui.theme.ButtonShape
 
 /**
  * 我的页（MD3 Expressive）：登录态卡片 + 功能菜单。
  * 登录态判定：CookieStore 里有 MUSIC_U；用户信息来自 /login/status。
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ProfileScreen(
     repository: NcmRepository,
     cookieStore: CookieStore,
     refreshKey: Int = 0,
     onLoginClick: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var nickname by remember { mutableStateOf<String?>(null) }
@@ -86,7 +91,7 @@ fun ProfileScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(20.dp)
         ) {
-            Text("我的", style = MaterialTheme.typography.headlineMedium)
+            Text("我的", style = MaterialTheme.typography.headlineLarge)
             Spacer(modifier = Modifier.height(24.dp))
 
             // 用户卡片
@@ -94,13 +99,13 @@ fun ProfileScreen(
                 modifier =
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(28.dp))
+                    .clip(MaterialTheme.shapes.extraLarge)
                     .background(MaterialTheme.colorScheme.surfaceContainerLow)
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 when {
-                    checking -> WavyCircularLoadingIndicator()
+                    checking -> LoadingIndicator()
                     nickname != null -> {
                         AsyncImage(
                             model = avatarUrl,
@@ -154,7 +159,7 @@ fun ProfileScreen(
                 if (nickname == null && !checking) {
                     Button(
                         onClick = onLoginClick,
-                        shape = RoundedCornerShape(20.dp),
+                        shape = ButtonShape,
                         modifier =
                         Modifier
                             .fillMaxWidth()
@@ -170,7 +175,7 @@ fun ProfileScreen(
                             avatarUrl = null
                             logoutRefreshKey++
                         },
-                        shape = RoundedCornerShape(20.dp),
+                        shape = ButtonShape,
                         modifier =
                         Modifier
                             .fillMaxWidth()
@@ -188,7 +193,7 @@ fun ProfileScreen(
                 modifier =
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(28.dp))
+                    .clip(MaterialTheme.shapes.extraLarge)
                     .background(MaterialTheme.colorScheme.surfaceContainerLow)
             ) {
                 MenuRow(icon = Icons.Filled.Favorite, title = "喜欢")
@@ -196,7 +201,7 @@ fun ProfileScreen(
                     modifier = Modifier.padding(horizontal = 20.dp),
                     color = MaterialTheme.colorScheme.outlineVariant
                 )
-                MenuRow(icon = Icons.Filled.Settings, title = "设置")
+                MenuRow(icon = Icons.Filled.Settings, title = "设置", onClick = onOpenSettings)
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = 20.dp),
                     color = MaterialTheme.colorScheme.outlineVariant
@@ -217,14 +222,12 @@ fun ProfileScreen(
     }
 }
 
-/** 菜单行：圆形图标容器 + 标题 + 箭头 */
+/** 菜单行：圆形图标容器 + 标题 + 箭头。onClick 为 null 时不响应点击 */
 @Composable
-private fun MenuRow(icon: ImageVector, title: String) {
+private fun MenuRow(icon: ImageVector, title: String, onClick: (() -> Unit)? = null) {
+    val base = Modifier.fillMaxWidth().padding(16.dp)
     Row(
-        modifier =
-        Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
+        modifier = if (onClick != null) base.clickable(onClick = onClick) else base,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(

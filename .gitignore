@@ -14,8 +14,8 @@
 .cxx
 local.properties
 
-# 本地计划文档，不纳入版本控制
-PLAN.md
+# 本地文档，不纳入版本控制
+/docs/
 
 # nodejs-mobile 原生库（下载产物，不入库）
 /app/libnode/

@@ -1,8 +1,6 @@
 package top.yunov.neteasy.ui
 
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -18,11 +16,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -50,11 +49,14 @@ import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.Song
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.toPlayerSong
+import top.yunov.neteasy.ui.theme.ButtonShape
+import top.yunov.neteasy.ui.theme.ExpressiveMotion
 
 /**
  * 搜索页：Expressive 大圆角搜索框 + 歌曲列表（Material 播放图标）。
  * 防抖 500ms，前一个搜索 job 会被取消避免竞态。
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SearchScreen(repository: NcmRepository, player: PlayerController, modifier: Modifier = Modifier) {
     var query by remember { mutableStateOf("") }
@@ -89,7 +91,7 @@ fun SearchScreen(repository: NcmRepository, player: PlayerController, modifier: 
     Column(modifier = modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Text(
             text = "搜索",
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineLarge,
             modifier = Modifier.padding(top = 20.dp, bottom = 14.dp)
         )
         OutlinedTextField(
@@ -108,7 +110,7 @@ fun SearchScreen(repository: NcmRepository, player: PlayerController, modifier: 
             placeholder = { Text("搜索歌曲、歌手") },
             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
             singleLine = true,
-            shape = RoundedCornerShape(24.dp),
+            shape = ButtonShape,
             colors =
             OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -118,8 +120,9 @@ fun SearchScreen(repository: NcmRepository, player: PlayerController, modifier: 
         )
 
         if (searching) {
+            // 搜索是短等待（200ms~5s）→ 用官方形状 morph 加载指示器
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                WavyCircularLoadingIndicator()
+                LoadingIndicator()
             }
         } else {
             LazyColumn(
@@ -149,11 +152,8 @@ fun SongRow(song: Song, onClick: () -> Unit) {
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.97f else 1f,
-        animationSpec =
-        spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
+        // spatial spring：按压回弹有过冲
+        animationSpec = ExpressiveMotion.SpatialFast,
         label = "songRowScale"
     )
     Row(
@@ -163,7 +163,7 @@ fun SongRow(song: Song, onClick: () -> Unit) {
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
-            }.clip(RoundedCornerShape(20.dp))
+            }.clip(MaterialTheme.shapes.medium)
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
@@ -175,7 +175,7 @@ fun SongRow(song: Song, onClick: () -> Unit) {
             modifier =
             Modifier
                 .size(52.dp)
-                .clip(RoundedCornerShape(16.dp)),
+                .clip(MaterialTheme.shapes.small),
             contentScale = ContentScale.Crop
         )
         Column(

@@ -1,6 +1,5 @@
 package top.yunov.neteasy.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,14 +10,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -42,10 +41,12 @@ import top.yunov.neteasy.data.Playlist
 import top.yunov.neteasy.data.Song
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.toPlayerSong
+import top.yunov.neteasy.ui.theme.ButtonShape
 
 /**
  * 歌单详情页（全屏覆盖层）：MD3 Expressive 大封面头部 + 播放全部 + 歌曲列表。
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun PlaylistScreen(playlistId: Long, repository: NcmRepository, player: PlayerController, onBack: () -> Unit) {
     var detail by remember { mutableStateOf<Playlist?>(null) }
@@ -81,13 +82,8 @@ fun PlaylistScreen(playlistId: Long, repository: NcmRepository, player: PlayerCo
                     .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(
-                    onClick = onBack,
-                    modifier =
-                    Modifier
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                ) {
+                // 官方 FilledTonalIconButton：自带容器 + Expressive spring 动效
+                FilledTonalIconButton(onClick = onBack) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                 }
                 Text(
@@ -100,7 +96,7 @@ fun PlaylistScreen(playlistId: Long, repository: NcmRepository, player: PlayerCo
             when {
                 loading ->
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        WavyCircularLoadingIndicator()
+                        LoadingIndicator()
                     }
                 error != null ->
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -127,7 +123,7 @@ fun PlaylistScreen(playlistId: Long, repository: NcmRepository, player: PlayerCo
                                         modifier =
                                         Modifier
                                             .size(120.dp)
-                                            .clip(RoundedCornerShape(28.dp)),
+                                            .clip(MaterialTheme.shapes.extraLarge),
                                         contentScale = ContentScale.Crop
                                     )
                                     Column(
@@ -158,7 +154,7 @@ fun PlaylistScreen(playlistId: Long, repository: NcmRepository, player: PlayerCo
                                                 }
                                             },
                                             modifier = Modifier.padding(top = 12.dp),
-                                            shape = RoundedCornerShape(20.dp)
+                                            shape = ButtonShape
                                         ) {
                                             Icon(
                                                 Icons.Filled.PlayArrow,
