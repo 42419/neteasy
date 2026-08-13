@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LinearWavyProgressIndicator
+import androidx.compose.material3.WavyProgressIndicatorDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -21,7 +22,13 @@ import androidx.compose.ui.unit.dp
  * 可拖动波浪进度条：官方 material3 的 [LinearWavyProgressIndicator] 只负责展示进度，
  * 不支持拖动；这里加一层轻量手势包装（点击 / 拖动 seek），视觉完全来自官方组件。
  *
- * [animating] 控制波浪是否流动：暂停时停止流动（省电），与播放状态同步。
+ * [animating] 控制波浪形态：播放中按官方默认振幅流动；暂停时振幅收平为直线。
+ * 收平/涌起的过渡动画由官方组件内部完成（Increasing/DecreasingAmplitudeAnimationSpec，
+ * 600ms tween），这里不再额外叠一层动画。
+ *
+ * 注意：暂停时不能把 waveSpeed 归零——官方实现里 waveSpeed=0 会把波形相位 waveOffset
+ * 强制重置为 0，导致波形跳回固定相位再趴平。保持 waveSpeed 流动则相位连续，
+ * 波形会从当前相位平滑融化成直线；振幅为 0 后 waveOffset 不再被绘制读取，几乎无开销。
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -64,19 +71,14 @@ fun SeekWaveProgressBar(
             },
         contentAlignment = Alignment.Center
     ) {
-        if (animating) {
-            // 播放中：官方默认波浪流动
-            LinearWavyProgressIndicator(
-                progress = { shown },
-                modifier = Modifier.fillMaxWidth()
-            )
-        } else {
-            // 暂停：waveSpeed=0 停止流动（省电），波形保持
-            LinearWavyProgressIndicator(
-                progress = { shown },
-                modifier = Modifier.fillMaxWidth(),
-                waveSpeed = 0.dp
-            )
-        }
+        // waveSpeed 保持流动不归零：避免官方组件把 waveOffset 重置导致相位跳变（见 KDoc）。
+        // amplitude 播放中保留官方默认的「进度两端收平、中段满振幅」特性，暂停时取 0 收平。
+        LinearWavyProgressIndicator(
+            progress = { shown },
+            modifier = Modifier.fillMaxWidth(),
+            wavelength = WavyProgressIndicatorDefaults.LinearDeterminateWavelength,
+            waveSpeed = WavyProgressIndicatorDefaults.LinearDeterminateWavelength,
+            amplitude = { if (animating) WavyProgressIndicatorDefaults.indicatorAmplitude(it) else 0f }
+        )
     }
 }
