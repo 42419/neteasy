@@ -22,8 +22,17 @@ data class Song(
     val artists: List<String>,
     val album: String = "",
     val picUrl: String = "", // 歌曲封面（歌单内歌曲通常无，用歌单封面兜底）
-    val duration: Long = 0
+    val duration: Long = 0,
+    /**
+     * 这首歌实际存在的音质档位（来自 /song/detail 的 l/h/sq/hr 字段是否非空判断）。
+     * 搜索结果的初始响应不带这些字段，会在 NcmRepository.search() 里用同一次
+     * /song/detail 补封面的请求顺带补齐；补齐前为空集合。
+     */
+    val availableQualities: Set<AudioQuality> = emptySet()
 )
+
+/** /song/detail 补充信息：封面 + 该歌曲实际存在的音质档位 */
+data class SongDetailExtra(val picUrl: String, val qualities: Set<AudioQuality>)
 
 // ---------- JSON 解析 ----------
 
@@ -73,7 +82,11 @@ object JsonParser {
         )
     }
 
-    /** 歌单歌曲列表（songs 数组，歌单里没有专辑封面图） */
+    /**
+     * 歌单歌曲列表（songs 数组）。/playlist/track/all 内部实际是拿 trackIds 转调
+     * /api/v3/song/detail 换来的，所以这里的对象跟 /song/detail 是同一套字段结构，
+     * l/h/sq/hr 音质字段是否存在可以直接判断。
+     */
     fun parseSongs(root: JSONObject): List<Song> {
         val arr = root.optJSONArray("songs") ?: return emptyList()
         return (0 until arr.length()).mapNotNull { i ->
@@ -81,7 +94,7 @@ object JsonParser {
         }
     }
 
-    /** 搜索结果的歌曲列表（result.songs，带专辑封面） */
+    /** 搜索结果的歌曲列表（result.songs，字段是精简版，没有封面也没有音质档位字段） */
     fun parseSearchSongs(root: JSONObject): List<Song> {
         val result = root.optJSONObject("result") ?: return emptyList()
         val arr = result.optJSONArray("songs") ?: return emptyList()
@@ -112,8 +125,24 @@ object JsonParser {
             artists = artists,
             album = album,
             picUrl = pic,
-            duration = o.optLong("dt")
+            duration = o.optLong("dt"),
+            availableQualities = parseAvailableQualities(o)
         )
+    }
+
+    /**
+     * 判断一首歌实际存在哪些音质档位：/song/detail 返回的 h/l/sq/hr 字段，
+     * 存在（非 null）代表服务端真有这一档的母带，不存在就是这首歌根本没有这个音质
+     * （不是权限问题，是压根没这个文件）。m（较高）字段不映射到任何选项——
+     * 新版 song/url/v1 的 level 已不支持 higher，跟网易云新客户端界面一致。
+     */
+    private fun parseAvailableQualities(o: JSONObject): Set<AudioQuality> {
+        val set = mutableSetOf<AudioQuality>()
+        if (o.optJSONObject("l") != null) set += AudioQuality.STANDARD
+        if (o.optJSONObject("h") != null) set += AudioQuality.EXHIGH
+        if (o.optJSONObject("sq") != null) set += AudioQuality.LOSSLESS
+        if (o.optJSONObject("hr") != null) set += AudioQuality.HIRES
+        return set
     }
 
     private fun parseNames(arr: JSONArray?): List<String> {
@@ -124,23 +153,24 @@ object JsonParser {
     }
 
     /**
-     * /song/detail 批量返回歌曲封面（搜索接口的 album 无 picUrl，只有 picId，
-     * 无法直接拼出图片地址；song/detail 里 al.picUrl 才是可直接加载的封面）。
-     * 返回 id → 封面 URL 映射。
+     * /song/detail 批量返回歌曲的封面 + 实际存在的音质档位，用于给搜索结果（字段精简，
+     * 没有封面/音质信息）补齐——搜索接口的 album 只有 picId 没有 picUrl，无法直接拼出
+     * 图片地址，必须靠这个接口补；音质档位顺带一起补，不用多打一次请求。
+     * 返回 id → (封面 URL, 音质档位集合) 映射。
      */
-    fun parseSongDetailCovers(root: JSONObject): Map<Long, String> {
+    fun parseSongDetailExtras(root: JSONObject): Map<Long, SongDetailExtra> {
         val arr = root.optJSONArray("songs") ?: return emptyMap()
         return (0 until arr.length())
             .mapNotNull { i ->
                 val o = arr.optJSONObject(i) ?: return@mapNotNull null
                 val id = o.optLong("id")
                 if (id == 0L) return@mapNotNull null
-                val pic = o.optJSONObject("al")?.optString("picUrl")?.takeIf { it.isNotBlank() }
-                if (pic == null) null else id to pic
+                val pic = o.optJSONObject("al")?.optString("picUrl")?.takeIf { it.isNotBlank() } ?: ""
+                id to SongDetailExtra(pic, parseAvailableQualities(o))
             }.toMap()
     }
 
-    /** /song/url/v1 返回可播放 URL，无则返回 null（VIP/无版权） */
+    /** /song/url/v1 返回可播放 URL，无则返回 null（VIP/无版权，或请求的音质档位不存在时服务端已自动降级仍无法播放） */
     fun parseSongUrl(root: JSONObject): String? {
         val arr = root.optJSONArray("data") ?: return null
         if (arr.length() == 0) return null

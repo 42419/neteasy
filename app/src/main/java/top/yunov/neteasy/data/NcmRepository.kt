@@ -31,16 +31,22 @@ class NcmRepository(private val api: ApiClient) {
                 api.get("/search", mapOf("keywords" to keywords, "limit" to "$limit"))
             )
         if (songs.isEmpty()) return songs
-        // 搜索接口不返回封面 URL，批量用 /song/detail 补一次封面；
-        // 补封面失败只降级（无封面），不丢搜索结果
+        // 搜索接口字段精简：没有封面 URL，也没有 l/h/sq/hr 音质字段。
+        // 批量用 /song/detail 补一次，封面和「这首歌实际有哪些音质」一起补齐，不用多打一次请求。
+        // 补齐失败只降级（无封面、音质档位未知），不丢搜索结果。
         return try {
             val ids = songs.joinToString(",") { it.id.toString() }
-            val covers =
-                JsonParser.parseSongDetailCovers(
+            val extras =
+                JsonParser.parseSongDetailExtras(
                     api.get("/song/detail", mapOf("ids" to ids))
                 )
             songs.map { song ->
-                covers[song.id]?.let { song.copy(picUrl = it) } ?: song
+                extras[song.id]?.let { extra ->
+                    song.copy(
+                        picUrl = extra.picUrl.ifEmpty { song.picUrl },
+                        availableQualities = extra.qualities
+                    )
+                } ?: song
             }
         } catch (e: Exception) {
             songs
@@ -50,13 +56,15 @@ class NcmRepository(private val api: ApiClient) {
     /**
      * 获取歌曲可播放 URL。
      * 免费歌曲返回真实地址；无版权/VIP 歌曲 url 为空字符串或缺失。
+     * [level] 对应 song/url/v1 的音质档位（standard/exhigh/lossless/hires）；
+     * 若这首歌没有该档位或账号权限不够，服务端会自动降级返回可播放的最高音质。
      */
-    suspend fun songUrl(id: Long): String? = JsonParser.parseSongUrl(
+    suspend fun songUrl(id: Long, level: String = AudioQuality.EXHIGH.level): String? = JsonParser.parseSongUrl(
         api.get(
             "/song/url/v1",
             mapOf(
                 "id" to "$id",
-                "level" to "exhigh"
+                "level" to level
             )
         )
     )

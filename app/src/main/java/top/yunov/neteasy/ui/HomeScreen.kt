@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,8 +24,10 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items as listItems
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -61,7 +64,12 @@ import top.yunov.neteasy.ui.theme.ExpressiveMotion
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun HomeScreen(repository: NcmRepository, onOpenPlaylist: (Long) -> Unit, modifier: Modifier = Modifier) {
+fun HomeScreen(
+    repository: NcmRepository,
+    onOpenPlaylist: (Long) -> Unit,
+    onOpenSearch: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     var banners by remember { mutableStateOf<List<Banner>>(emptyList()) }
     var playlists by remember { mutableStateOf<List<Playlist>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
@@ -116,6 +124,9 @@ fun HomeScreen(repository: NcmRepository, onOpenPlaylist: (Long) -> Unit, modifi
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
+                    SearchEntryBar(onClick = onOpenSearch, modifier = Modifier.padding(bottom = 10.dp))
+                }
+                item(span = { GridItemSpan(maxLineSpan) }) {
                     Column(modifier = Modifier.padding(bottom = 4.dp)) {
                         // 强调排版 hero：大标题引导注意力（MD3 Expressive）
                         Text("发现音乐", style = MaterialTheme.typography.headlineLarge)
@@ -147,6 +158,48 @@ fun HomeScreen(repository: NcmRepository, onOpenPlaylist: (Long) -> Unit, modifi
 private fun Centered(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         content()
+    }
+}
+
+/**
+ * 首页顶部的搜索入口：整条可点击的胶囊形搜索框（非真正可输入，点击后跳转到搜索页），
+ * 放在首页最上方，替代原来单独的底部「搜索」Tab。
+ */
+@Composable
+private fun SearchEntryBar(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.98f else 1f,
+        animationSpec = ExpressiveMotion.SpatialFast,
+        label = "searchBarScale"
+    )
+    Row(
+        modifier =
+        modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }.height(52.dp)
+            .clip(RoundedCornerShape(percent = 50))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .padding(horizontal = 18.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            Icons.Filled.Search,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
+        )
+        Text(
+            "搜索歌曲、歌手、专辑",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 10.dp)
+        )
     }
 }
 

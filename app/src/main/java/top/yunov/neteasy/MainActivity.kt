@@ -50,6 +50,7 @@ import top.yunov.neteasy.ui.Minibar
 import top.yunov.neteasy.ui.NavState
 import top.yunov.neteasy.ui.PlaylistScreen
 import top.yunov.neteasy.ui.ProfileScreen
+import top.yunov.neteasy.ui.QueueSheet
 import top.yunov.neteasy.ui.SearchScreen
 import top.yunov.neteasy.ui.SettingsScreen
 import top.yunov.neteasy.ui.theme.ExpressiveMotion
@@ -78,6 +79,7 @@ class MainActivity : ComponentActivity() {
                 }
             NeteasyTheme(darkTheme = darkTheme, dynamicColor = dynamicColor) {
                 NcmApp(
+                    settings = settings,
                     themeMode = themeMode,
                     onThemeModeChange = {
                         settings.themeMode = it
@@ -94,8 +96,8 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** 底部导航页 */
-enum class Screen { HOME, SEARCH, PROFILE }
+/** 底部导航页（搜索已移到首页顶部搜索框入口，不再是单独的底部 Tab） */
+enum class Screen { HOME, PROFILE }
 
 /**
  * Tab 宿主：页面常驻组合（keep-alive），切换 Tab 时页面不销毁、不重建，
@@ -140,6 +142,7 @@ private fun TabHost(visible: Boolean, content: @Composable () -> Unit) {
 
 @Composable
 private fun NcmApp(
+    settings: SettingsStore,
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
     dynamicColor: Boolean = true,
@@ -152,7 +155,7 @@ private fun NcmApp(
     val apiClient = remember { ApiClient(context) }
     val repository = remember { NcmRepository(apiClient) }
     val cookieStore = remember { apiClient.cookieStore }
-    val player = remember { PlayerController(scope, repository) }
+    val player = remember { PlayerController(scope, repository, initialQuality = settings.preferredAudioQuality) }
 
     // 组合销毁时释放 MediaPlayer，防 Activity 重建（旋转）泄漏音频资源
     DisposableEffect(player) {
@@ -167,6 +170,8 @@ private fun NcmApp(
     var currentPlaylistId by remember { mutableStateOf<Long?>(null) }
     var showLogin by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
+    var showQueue by remember { mutableStateOf(false) }
     var profileRefreshKey by remember { mutableIntStateOf(0) }
 
     // Android 13+ 通知权限（前台服务通知可见）
@@ -189,23 +194,24 @@ private fun NcmApp(
                 state = playerState,
                 onToggle = { player.toggle() },
                 onSeek = { player.seekTo(it) },
+                onPrevious = { player.previous() },
+                onNext = { player.next() },
+                onOpenQueue = { showQueue = true },
+                onQualityChange = { quality ->
+                    settings.preferredAudioQuality = quality
+                    player.setQuality(quality)
+                },
                 navState = NavState(screen, { screen = it })
             )
         }
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding)) {
-            // 三个页面 keep-alive：切换 Tab 只改变可见性与层级，不重新加载
+            // 两个主 Tab keep-alive：切换 Tab 只改变可见性与层级，不重新加载
             TabHost(visible = screen == Screen.HOME) {
                 HomeScreen(
                     repository = repository,
                     onOpenPlaylist = { id -> currentPlaylistId = id },
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-            TabHost(visible = screen == Screen.SEARCH) {
-                SearchScreen(
-                    repository = repository,
-                    player = player,
+                    onOpenSearch = { showSearch = true },
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -225,6 +231,7 @@ private fun NcmApp(
     // 系统返回键/手势：优先关闭最上层的覆盖层，而不是直接退出 App
     BackHandler(enabled = showSettings) { showSettings = false }
     BackHandler(enabled = showLogin) { showLogin = false }
+    BackHandler(enabled = showSearch) { showSearch = false }
     BackHandler(enabled = currentPlaylistId != null) { currentPlaylistId = null }
 
     // Material/Android 默认页面转场：标准 300ms + FastOutSlowInEasing（tween 默认曲线），
@@ -257,6 +264,26 @@ private fun NcmApp(
                 showLogin = false
                 profileRefreshKey++
             }
+        )
+    }
+
+    // 搜索页覆盖层：从首页顶部搜索框点进来，跟设置/登录一样的默认转场
+    AnimatedVisibility(visible = showSearch, enter = defaultEnter, exit = defaultExit) {
+        SearchScreen(
+            repository = repository,
+            player = player,
+            onBack = { showSearch = false },
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+
+    // 播放队列面板（底部弹出，自带手势下拉关闭 + 返回键关闭，不用套 AnimatedVisibility/BackHandler）
+    if (showQueue) {
+        QueueSheet(
+            queue = playerState.queue,
+            currentIndex = playerState.queueIndex,
+            onSelect = { index -> player.playAt(index) },
+            onDismiss = { showQueue = false }
         )
     }
 

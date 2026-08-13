@@ -53,6 +53,121 @@ val Icons.Filled.DarkMode: ImageVector
         return darkModeIcon!!
     }
 
+// material-icons-core 未收录 SkipNext 图标，使用 Material 官方 skip_next 路径自定义
+private var skipNextIcon: ImageVector? = null
+
+val Icons.Filled.SkipNext: ImageVector
+    get() {
+        if (skipNextIcon != null) return skipNextIcon!!
+        skipNextIcon =
+            materialIcon(name = "Filled.SkipNext") {
+                materialPath {
+                    moveTo(6f, 18f)
+                    lineToRelative(8.5f, -6f)
+                    lineTo(6f, 6f)
+                    verticalLineToRelative(12f)
+                    close()
+                    moveTo(16f, 6f)
+                    verticalLineToRelative(12f)
+                    horizontalLineToRelative(2f)
+                    verticalLineTo(6f)
+                    close()
+                }
+            }
+        return skipNextIcon!!
+    }
+
+// material-icons-core 未收录 SkipPrevious 图标，使用 Material 官方 skip_previous 路径自定义
+private var skipPreviousIcon: ImageVector? = null
+
+val Icons.Filled.SkipPrevious: ImageVector
+    get() {
+        if (skipPreviousIcon != null) return skipPreviousIcon!!
+        skipPreviousIcon =
+            materialIcon(name = "Filled.SkipPrevious") {
+                materialPath {
+                    moveTo(6f, 6f)
+                    horizontalLineToRelative(2f)
+                    verticalLineToRelative(12f)
+                    horizontalLineTo(6f)
+                    close()
+                    moveTo(9.5f, 12f)
+                    lineToRelative(8.5f, 6f)
+                    verticalLineTo(6f)
+                    close()
+                }
+            }
+        return skipPreviousIcon!!
+    }
+
+// material-icons-core 未收录播放队列图标，自绘三条列表线（末行收短，代表“播放列表”）
+private var queueMusicIcon: ImageVector? = null
+
+val Icons.Filled.QueueMusic: ImageVector
+    get() {
+        if (queueMusicIcon != null) return queueMusicIcon!!
+        queueMusicIcon =
+            materialIcon(name = "Filled.QueueMusic") {
+                materialPath {
+                    moveTo(4f, 6f)
+                    horizontalLineToRelative(16f)
+                    verticalLineToRelative(2f)
+                    horizontalLineTo(4f)
+                    close()
+                    moveTo(4f, 11f)
+                    horizontalLineToRelative(16f)
+                    verticalLineToRelative(2f)
+                    horizontalLineTo(4f)
+                    close()
+                    moveTo(4f, 16f)
+                    horizontalLineToRelative(10f)
+                    verticalLineToRelative(2f)
+                    horizontalLineTo(4f)
+                    close()
+                }
+            }
+        return queueMusicIcon!!
+    }
+
+// material-icons-core 未收录音质/均衡器图标，自绘五条高低不一的柱状条
+private var equalizerIcon: ImageVector? = null
+
+val Icons.Filled.Equalizer: ImageVector
+    get() {
+        if (equalizerIcon != null) return equalizerIcon!!
+        equalizerIcon =
+            materialIcon(name = "Filled.Equalizer") {
+                materialPath {
+                    moveTo(3f, 20f)
+                    horizontalLineToRelative(2f)
+                    verticalLineToRelative(-6f)
+                    horizontalLineToRelative(-2f)
+                    close()
+                    moveTo(7f, 20f)
+                    horizontalLineToRelative(2f)
+                    verticalLineToRelative(-10f)
+                    horizontalLineToRelative(-2f)
+                    close()
+                    moveTo(11f, 20f)
+                    horizontalLineToRelative(2f)
+                    verticalLineToRelative(-16f)
+                    horizontalLineToRelative(-2f)
+                    close()
+                    moveTo(15f, 20f)
+                    horizontalLineToRelative(2f)
+                    verticalLineToRelative(-10f)
+                    horizontalLineToRelative(-2f)
+                    close()
+                    moveTo(19f, 20f)
+                    horizontalLineToRelative(2f)
+                    verticalLineToRelative(-6f)
+                    horizontalLineToRelative(-2f)
+                    close()
+                }
+            }
+        return equalizerIcon!!
+    }
+
 // material-icons-core 未收录 Palette 图标，使用 Material 官方 palette 路径自定义
 private var paletteIcon: ImageVector? = null
 

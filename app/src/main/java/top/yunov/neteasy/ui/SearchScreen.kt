@@ -9,24 +9,31 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +46,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -55,15 +64,23 @@ import top.yunov.neteasy.ui.theme.ExpressiveMotion
 /**
  * 搜索页：Expressive 大圆角搜索框 + 歌曲列表（Material 播放图标）。
  * 防抖 500ms，前一个搜索 job 会被取消避免竞态。
+ * 作为全屏覆盖层渲染（从首页顶部搜索框点进来），需自带返回按钮和不透明背景，
+ * 并自己处理状态栏 / 手势导航栏安全区（Scaffold 的 insets 罩不到这里）。
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun SearchScreen(repository: NcmRepository, player: PlayerController, modifier: Modifier = Modifier) {
+fun SearchScreen(repository: NcmRepository, player: PlayerController, onBack: () -> Unit, modifier: Modifier = Modifier) {
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<Song>>(emptyList()) }
     var searching by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var searchJob by remember { mutableStateOf<Job?>(null) }
+    val focusRequester = remember { FocusRequester() }
+
+    // 覆盖层刚打开时自动聚焦搜索框并唤起键盘，省一次点击
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
 
     fun doSearch(q: String) {
         searchJob?.cancel()
@@ -88,54 +105,67 @@ fun SearchScreen(repository: NcmRepository, player: PlayerController, modifier: 
             }
     }
 
-    Column(modifier = modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        Text(
-            text = "搜索",
-            style = MaterialTheme.typography.headlineLarge,
-            modifier = Modifier.padding(top = 20.dp, bottom = 14.dp)
-        )
-        OutlinedTextField(
-            value = query,
-            onValueChange = {
-                query = it
-                // 防抖：先取消旧的，500ms 后真正搜索
-                searchJob?.cancel()
-                searchJob =
-                    scope.launch {
-                        delay(500)
-                        doSearch(it)
-                    }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("搜索歌曲、歌手") },
-            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-            singleLine = true,
-            shape = ButtonShape,
-            colors =
-            OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                focusedBorderColor = MaterialTheme.colorScheme.primary
-            )
-        )
-
-        if (searching) {
-            // 搜索是短等待（200ms~5s）→ 用官方形状 morph 加载指示器
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                LoadingIndicator()
+    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Column(
+            modifier =
+            Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.systemBars)
+                .padding(horizontal = 16.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp, bottom = 14.dp)) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                }
+                Text(
+                    text = "搜索",
+                    style = MaterialTheme.typography.headlineLarge,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(top = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                itemsIndexed(results, key = { _, song -> song.id }) { index, song ->
-                    SongRow(
-                        song = song,
-                        onClick = {
-                            player.playQueue(results.map { it.toPlayerSong() }, index)
+            OutlinedTextField(
+                value = query,
+                onValueChange = {
+                    query = it
+                    // 防抖：先取消旧的，500ms 后真正搜索
+                    searchJob?.cancel()
+                    searchJob =
+                        scope.launch {
+                            delay(500)
+                            doSearch(it)
                         }
-                    )
+                },
+                modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+                placeholder = { Text("搜索歌曲、歌手") },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                singleLine = true,
+                shape = ButtonShape,
+                colors =
+                OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary
+                )
+            )
+
+            if (searching) {
+                // 搜索是短等待（200ms~5s）→ 用官方形状 morph 加载指示器
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    LoadingIndicator()
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(top = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    itemsIndexed(results, key = { _, song -> song.id }) { index, song ->
+                        SongRow(
+                            song = song,
+                            onClick = {
+                                player.playQueue(results.map { it.toPlayerSong() }, index)
+                            }
+                        )
+                    }
                 }
             }
         }
