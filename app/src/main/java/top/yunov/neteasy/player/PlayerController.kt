@@ -17,6 +17,9 @@ import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.AudioQuality
 import top.yunov.neteasy.data.NcmRepository
 
+/** 循环模式：不循环（播完队列停止）/ 列表循环（播完最后一首回到第一首）/ 单曲循环 */
+enum class RepeatMode { OFF, ALL, ONE }
+
 /**
  * 播放器控制器：
  * - 队列：currentQueue + currentIndex，支持整队播放 / 上一首 / 下一首 / 自动连播 / 跳转到队列中任意一首
@@ -40,10 +43,13 @@ class PlayerController(
         /** 当前播放队列的完整快照，供「播放队列」面板展示 */
         val queue: List<PlayerSong> = emptyList(),
         /** 当前播放音质档位 */
-        val quality: AudioQuality = AudioQuality.EXHIGH
+        val quality: AudioQuality = AudioQuality.EXHIGH,
+        /** 循环模式 */
+        val repeatMode: RepeatMode = RepeatMode.OFF
     ) {
-        val hasNext: Boolean get() = queueIndex in 0 until queueSize - 1
-        val hasPrevious: Boolean get() = queueIndex > 0
+        // 列表循环模式下首尾相接，按钮不应该显示为「到头了」
+        val hasNext: Boolean get() = (queueIndex in 0 until queueSize - 1) || (repeatMode == RepeatMode.ALL && queueSize > 0)
+        val hasPrevious: Boolean get() = queueIndex > 0 || (repeatMode == RepeatMode.ALL && queueSize > 0)
     }
 
     data class PlayerSong(
@@ -80,18 +86,39 @@ class PlayerController(
         playCurrentQueueEntry()
     }
 
-    /** 下一首（队列到底则停止在最后一首，不循环） */
+    /** 下一首（队列到底：列表循环则回到第一首，否则停在最后一首不动） */
     fun next() {
-        if (queueIndex < 0 || queueIndex + 1 >= queue.size) return
-        queueIndex++
-        playCurrentQueueEntry()
+        if (queueIndex < 0) return
+        if (queueIndex + 1 < queue.size) {
+            queueIndex++
+            playCurrentQueueEntry()
+        } else if (_state.value.repeatMode == RepeatMode.ALL && queue.isNotEmpty()) {
+            queueIndex = 0
+            playCurrentQueueEntry()
+        }
     }
 
-    /** 上一首 */
+    /** 上一首（第一首时：列表循环则跳到最后一首，否则不动） */
     fun previous() {
-        if (queueIndex <= 0) return
-        queueIndex--
-        playCurrentQueueEntry()
+        if (queueIndex < 0) return
+        if (queueIndex > 0) {
+            queueIndex--
+            playCurrentQueueEntry()
+        } else if (_state.value.repeatMode == RepeatMode.ALL && queue.isNotEmpty()) {
+            queueIndex = queue.size - 1
+            playCurrentQueueEntry()
+        }
+    }
+
+    /** 依次切换循环模式：不循环 → 列表循环 → 单曲循环 → 不循环 */
+    fun cycleRepeatMode() {
+        val next =
+            when (_state.value.repeatMode) {
+                RepeatMode.OFF -> RepeatMode.ALL
+                RepeatMode.ALL -> RepeatMode.ONE
+                RepeatMode.ONE -> RepeatMode.OFF
+            }
+        _state.value = _state.value.copy(repeatMode = next)
     }
 
     /** 跳转到队列中指定下标的歌曲（「播放队列」面板点某一首直接播） */
@@ -164,12 +191,12 @@ class PlayerController(
         }
     }
 
-    /** 完整停止：释放播放器并清空状态（含队列） */
+    /** 完整停止：释放播放器并清空状态（含队列，音质/循环模式偏好保留） */
     fun release() {
         releasePlayerOnly()
         queue = emptyList()
         queueIndex = -1
-        _state.value = PlayerUiState(quality = _state.value.quality)
+        _state.value = PlayerUiState(quality = _state.value.quality, repeatMode = _state.value.repeatMode)
     }
 
     /** 解析队列里当前下标对应的歌曲 URL 并播放；异步解析期间已带上代际号防止过期回调乱序覆盖状态 */
@@ -265,11 +292,22 @@ class PlayerController(
                 }
             }
             p.setOnCompletionListener {
-                // 队列里还有下一首就自动连播；没有（或不在队列里播放）就停在结尾
-                if (queueIndex in 0 until queue.size - 1) {
-                    next()
-                } else {
-                    _state.value = _state.value.copy(isPlaying = false, positionMs = 0)
+                when {
+                    // 单曲循环：不用重新解析 URL，直接从头再播一遍（PlaybackCompleted 状态下
+                    // seekTo/start 都是合法调用，瞬间生效）
+                    _state.value.repeatMode == RepeatMode.ONE -> {
+                        val mp = mediaPlayer
+                        if (mp != null) {
+                            mp.seekTo(0)
+                            mp.start()
+                            _state.value = _state.value.copy(isPlaying = true, positionMs = 0)
+                            startProgressTicker()
+                        }
+                    }
+                    // 队列还有下一首，或者开了列表循环（next() 内部已处理回绕到第一首）
+                    queueIndex in 0 until queue.size - 1 ||
+                        (_state.value.repeatMode == RepeatMode.ALL && queue.isNotEmpty()) -> next()
+                    else -> _state.value = _state.value.copy(isPlaying = false, positionMs = 0)
                 }
             }
             p.setOnErrorListener { _, what, extra ->

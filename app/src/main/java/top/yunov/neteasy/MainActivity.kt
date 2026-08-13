@@ -15,7 +15,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -48,6 +50,7 @@ import top.yunov.neteasy.ui.HomeScreen
 import top.yunov.neteasy.ui.LoginScreen
 import top.yunov.neteasy.ui.Minibar
 import top.yunov.neteasy.ui.NavState
+import top.yunov.neteasy.ui.NowPlayingScreen
 import top.yunov.neteasy.ui.PlaylistScreen
 import top.yunov.neteasy.ui.ProfileScreen
 import top.yunov.neteasy.ui.QueueSheet
@@ -172,6 +175,7 @@ private fun NcmApp(
     var showSettings by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
     var showQueue by remember { mutableStateOf(false) }
+    var showNowPlaying by remember { mutableStateOf(false) }
     var profileRefreshKey by remember { mutableIntStateOf(0) }
 
     // Android 13+ 通知权限（前台服务通知可见）
@@ -201,6 +205,7 @@ private fun NcmApp(
                     settings.preferredAudioQuality = quality
                     player.setQuality(quality)
                 },
+                onExpand = { showNowPlaying = true },
                 navState = NavState(screen, { screen = it })
             )
         }
@@ -232,6 +237,7 @@ private fun NcmApp(
     BackHandler(enabled = showSettings) { showSettings = false }
     BackHandler(enabled = showLogin) { showLogin = false }
     BackHandler(enabled = showSearch) { showSearch = false }
+    BackHandler(enabled = showNowPlaying) { showNowPlaying = false }
     BackHandler(enabled = currentPlaylistId != null) { currentPlaylistId = null }
 
     // Material/Android 默认页面转场：标准 300ms + FastOutSlowInEasing（tween 默认曲线），
@@ -242,6 +248,15 @@ private fun NcmApp(
     val defaultExit =
         fadeOut(tween(300)) +
             slideOutHorizontally(tween(300)) { it / 3 }
+
+    // 展开播放页专用转场：从底部滑起 / 收回，跟“从 Minibar 展开”的方向直觉一致，
+    // 区别于其他覆盖层的横向 push。
+    val expandEnter =
+        fadeIn(tween(300)) +
+            slideInVertically(tween(300)) { it / 6 }
+    val expandExit =
+        fadeOut(tween(300)) +
+            slideOutVertically(tween(300)) { it / 6 }
 
     // 设置页覆盖层
     AnimatedVisibility(visible = showSettings, enter = defaultEnter, exit = defaultExit) {
@@ -274,6 +289,24 @@ private fun NcmApp(
             player = player,
             onBack = { showSearch = false },
             modifier = Modifier.fillMaxSize()
+        )
+    }
+
+    // 展开播放页：点 Minibar 封面/歌名展开，从底部滑起
+    AnimatedVisibility(visible = showNowPlaying, enter = expandEnter, exit = expandExit) {
+        NowPlayingScreen(
+            state = playerState,
+            onToggle = { player.toggle() },
+            onSeek = { player.seekTo(it) },
+            onPrevious = { player.previous() },
+            onNext = { player.next() },
+            onOpenQueue = { showQueue = true },
+            onQualityChange = { quality ->
+                settings.preferredAudioQuality = quality
+                player.setQuality(quality)
+            },
+            onCycleRepeat = { player.cycleRepeatMode() },
+            onCollapse = { showNowPlaying = false }
         )
     }
 

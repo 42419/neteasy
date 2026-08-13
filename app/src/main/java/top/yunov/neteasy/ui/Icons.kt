@@ -168,6 +168,61 @@ val Icons.Filled.Equalizer: ImageVector
         return equalizerIcon!!
     }
 
+// material-icons-core 未收录 ExpandMore（收起箭头 ⌄）图标，使用 Material 官方路径自定义
+private var expandMoreIcon: ImageVector? = null
+
+val Icons.Filled.ExpandMore: ImageVector
+    get() {
+        if (expandMoreIcon != null) return expandMoreIcon!!
+        expandMoreIcon =
+            materialIcon(name = "Filled.ExpandMore") {
+                materialPath {
+                    moveTo(16.59f, 8.59f)
+                    lineTo(12f, 13.17f)
+                    lineToRelative(-4.59f, -4.58f)
+                    lineTo(6f, 10f)
+                    lineToRelative(6f, 6f)
+                    lineToRelative(6f, -6f)
+                    close()
+                }
+            }
+        return expandMoreIcon!!
+    }
+
+// material-icons-core 未收录 Repeat（循环播放）图标，使用 Material 官方 repeat 路径自定义
+private var repeatIcon: ImageVector? = null
+
+val Icons.Filled.Repeat: ImageVector
+    get() {
+        if (repeatIcon != null) return repeatIcon!!
+        repeatIcon =
+            materialIcon(name = "Filled.Repeat") {
+                materialPath {
+                    moveTo(7f, 7f)
+                    horizontalLineToRelative(10f)
+                    verticalLineToRelative(3f)
+                    lineToRelative(4f, -4f)
+                    lineToRelative(-4f, -4f)
+                    verticalLineToRelative(3f)
+                    horizontalLineTo(5f)
+                    verticalLineToRelative(6f)
+                    horizontalLineToRelative(2f)
+                    close()
+                    moveTo(17f, 17f)
+                    horizontalLineTo(7f)
+                    verticalLineToRelative(-3f)
+                    lineToRelative(-4f, 4f)
+                    lineToRelative(4f, 4f)
+                    verticalLineToRelative(-3f)
+                    horizontalLineToRelative(12f)
+                    verticalLineToRelative(-6f)
+                    horizontalLineToRelative(-2f)
+                    close()
+                }
+            }
+        return repeatIcon!!
+    }
+
 // material-icons-core 未收录 Palette 图标，使用 Material 官方 palette 路径自定义
 private var paletteIcon: ImageVector? = null
 

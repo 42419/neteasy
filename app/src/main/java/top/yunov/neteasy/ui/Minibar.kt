@@ -1,6 +1,7 @@
 package top.yunov.neteasy.ui
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,6 +44,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import coil.compose.AsyncImage
@@ -73,6 +75,7 @@ fun Minibar(
     onNext: () -> Unit,
     onOpenQueue: () -> Unit,
     onQualityChange: (AudioQuality) -> Unit,
+    onExpand: () -> Unit,
     navState: NavState
 ) {
     CompositionLocalProvider(LocalNavState provides navState) {
@@ -110,7 +113,7 @@ fun Minibar(
                             modifier = Modifier.padding(horizontal = 16.dp)
                         )
 
-                        // 信息行：封面 + 歌名/歌手 + 音质切换 + 播放队列入口
+                        // 信息行：封面 + 歌名/歌手 + 音质切换 + 播放队列入口（点封面/歌名区域展开全屏播放页）
                         Row(
                             modifier =
                             Modifier
@@ -124,7 +127,8 @@ fun Minibar(
                                 modifier =
                                 Modifier
                                     .size(44.dp)
-                                    .clip(MaterialTheme.shapes.small),
+                                    .clip(MaterialTheme.shapes.small)
+                                    .clickable(onClick = onExpand),
                                 contentScale = ContentScale.Crop
                             )
                             Column(
@@ -132,6 +136,7 @@ fun Minibar(
                                 Modifier
                                     .weight(1f)
                                     .padding(horizontal = 12.dp)
+                                    .clickable(onClick = onExpand)
                             ) {
                                 Text(
                                     text = song.name,
@@ -214,7 +219,7 @@ fun Minibar(
  * 当前选中档位用主题色高亮。
  */
 @Composable
-private fun QualityChip(current: AudioQuality, available: Set<AudioQuality>, onSelect: (AudioQuality) -> Unit) {
+internal fun QualityChip(current: AudioQuality, available: Set<AudioQuality>, onSelect: (AudioQuality) -> Unit) {
     var expandedState by remember { mutableStateOf(false) }
     Box {
         AssistChip(
@@ -257,7 +262,7 @@ private fun QualityChip(current: AudioQuality, available: Set<AudioQuality>, onS
  * 下一次轮询值到来会重新校正基准（自动纠偏，不会越走越偏）。
  */
 @Composable
-private fun rememberSmoothPositionMs(
+internal fun rememberSmoothPositionMs(
     positionMs: Long,
     isPlaying: Boolean,
     durationMs: Long,
@@ -278,10 +283,18 @@ private fun rememberSmoothPositionMs(
     return displayed
 }
 
+/** 毫秒 → mm:ss（用于展开播放页的时间标签，Minibar 本身不展示时间文字，节省空间） */
+internal fun formatTime(ms: Long): String {
+    val totalSec = (ms / 1000).coerceAtLeast(0)
+    val m = totalSec / 60
+    val s = totalSec % 60
+    return "%d:%02d".format(m, s)
+}
+
 /** 弹性播放/暂停键（MD3 Expressive spring 动效 + 官方 FilledTonalIconButton） */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun PlayButton(isPlaying: Boolean, onClick: () -> Unit) {
+internal fun PlayButton(isPlaying: Boolean, onClick: () -> Unit, size: Dp = 52.dp) {
     val scale by animateFloatAsState(
         targetValue = if (isPlaying) 1.12f else 1f,
         // spatial spring：位移/尺寸变化有过冲（MD3 Expressive）
@@ -291,7 +304,7 @@ private fun PlayButton(isPlaying: Boolean, onClick: () -> Unit) {
     Box(
         modifier =
         Modifier
-            .size(52.dp)
+            .size(size)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -300,6 +313,7 @@ private fun PlayButton(isPlaying: Boolean, onClick: () -> Unit) {
     ) {
         FilledTonalIconButton(
             onClick = onClick,
+            modifier = Modifier.size(size),
             colors =
             filledTonalIconButtonColors(
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -309,7 +323,7 @@ private fun PlayButton(isPlaying: Boolean, onClick: () -> Unit) {
             Icon(
                 imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                 contentDescription = if (isPlaying) "暂停" else "播放",
-                modifier = Modifier.size(26.dp)
+                modifier = Modifier.size(size * 0.5f)
             )
         }
     }
