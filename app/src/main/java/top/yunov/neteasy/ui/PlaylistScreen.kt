@@ -16,11 +16,11 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -104,8 +104,9 @@ fun PlaylistScreen(playlistId: Long, repository: NcmRepository, player: PlayerCo
 
             when {
                 loading ->
+                    // 加载指示器盖在整页内容上，按规范用带容器变体提供对比
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        LoadingIndicator()
+                        ContainedLoadingIndicator()
                     }
                 error != null ->
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

@@ -28,7 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.CircularWavyProgressIndicator
+import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -106,8 +106,8 @@ fun HomeScreen(
     }
 
     when {
-        // 首页冷启动可能超过 5s（Node 后端启动 + 重试）→ 按规范用进度指示器（长等待）
-        loading -> Centered(modifier) { CircularWavyProgressIndicator() }
+        // 首页冷启动可能超过 5s（Node 后端启动 + 重试）→ 加载指示器盖在内容上，用带容器变体提供对比
+        loading -> Centered(modifier) { ContainedLoadingIndicator() }
         error != null ->
             Centered(modifier) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
