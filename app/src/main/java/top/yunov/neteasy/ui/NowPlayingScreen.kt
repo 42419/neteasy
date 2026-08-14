@@ -7,16 +7,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -153,60 +155,116 @@ fun NowPlayingScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 播放控制：上一首 / 播放暂停（大）/ 下一首
+            // 播放控制：参考 M3 Expressive 官方博客的大圆角方块按钮样式——
+            // 两侧浅色 tonal 方块（上一首/下一首），中间实心方块（播放/暂停）
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth().height(88.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                IconButton(onClick = onPrevious, enabled = state.hasPrevious) {
-                    Icon(Icons.Filled.SkipPrevious, contentDescription = "上一首", modifier = Modifier.size(36.dp))
-                }
-                Spacer(modifier = Modifier.width(1.dp))
-                Box(modifier = Modifier.padding(horizontal = 28.dp)) {
-                    PlayButton(isPlaying = state.isPlaying, onClick = onToggle, size = 76.dp)
-                }
-                IconButton(onClick = onNext, enabled = state.hasNext) {
-                    Icon(Icons.Filled.SkipNext, contentDescription = "下一首", modifier = Modifier.size(36.dp))
-                }
+                BigSquareButton(
+                    icon = Icons.Filled.SkipPrevious,
+                    contentDescription = "上一首",
+                    onClick = onPrevious,
+                    enabled = state.hasPrevious,
+                    filled = false,
+                    modifier = Modifier.weight(1f).fillMaxHeight()
+                )
+                BigSquareButton(
+                    icon = if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    contentDescription = if (state.isPlaying) "暂停" else "播放",
+                    onClick = onToggle,
+                    filled = true,
+                    modifier = Modifier.weight(1f).fillMaxHeight()
+                )
+                BigSquareButton(
+                    icon = Icons.Filled.SkipNext,
+                    contentDescription = "下一首",
+                    onClick = onNext,
+                    enabled = state.hasNext,
+                    filled = false,
+                    modifier = Modifier.weight(1f).fillMaxHeight()
+                )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // 循环模式：点击依次切换 不循环 → 列表循环 → 单曲循环
+            // 循环模式：点击依次切换 顺序播放 → 列表循环 → 单曲循环，三种状态各用各的图标
             val repeatLabel =
                 when (state.repeatMode) {
                     RepeatMode.OFF -> "顺序播放"
                     RepeatMode.ALL -> "列表循环"
                     RepeatMode.ONE -> "单曲循环"
                 }
+            val repeatTint =
+                if (state.repeatMode == RepeatMode.OFF) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.primary
+                }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(bottom = 20.dp)
             ) {
                 IconButton(onClick = onCycleRepeat) {
-                    Icon(
-                        Icons.Filled.Repeat,
-                        contentDescription = repeatLabel,
-                        tint =
-                        if (state.repeatMode == RepeatMode.OFF) {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        } else {
-                            MaterialTheme.colorScheme.primary
-                        }
-                    )
-                }
-                Text(
-                    repeatLabel,
-                    style = MaterialTheme.typography.labelMedium,
-                    color =
-                    if (state.repeatMode == RepeatMode.OFF) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    } else {
-                        MaterialTheme.colorScheme.primary
+                    when (state.repeatMode) {
+                        // 顺序播放：一条直箭头，跟“循环”的环形箭头明显区分
+                        RepeatMode.OFF -> Icon(Icons.Filled.TrendingFlat, contentDescription = repeatLabel, tint = repeatTint)
+                        // 列表循环：环形箭头
+                        RepeatMode.ALL -> Icon(Icons.Filled.Repeat, contentDescription = repeatLabel, tint = repeatTint)
+                        // 单曲循环：环形箭头 + 角标“1”
+                        RepeatMode.ONE ->
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Filled.Repeat, contentDescription = repeatLabel, tint = repeatTint)
+                                Text(
+                                    "1",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = repeatTint
+                                )
+                            }
                     }
-                )
+                }
+                Text(repeatLabel, style = MaterialTheme.typography.labelMedium, color = repeatTint)
             }
+        }
+    }
+}
+
+/**
+ * 大圆角方块控制按钮：参考 M3 Expressive 官方博客的播放控制样式。
+ * [filled] 为 true 时是实心主色方块（播放/暂停这种主操作），否则是浅色 tonal 方块。
+ */
+@Composable
+private fun BigSquareButton(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    filled: Boolean = false
+) {
+    val containerColor =
+        if (filled) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.secondaryContainer
+        }
+    val contentColor =
+        if (filled) {
+            MaterialTheme.colorScheme.onPrimary
+        } else {
+            MaterialTheme.colorScheme.onSecondaryContainer
+        }
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = RoundedCornerShape(28.dp),
+        color = containerColor,
+        contentColor = contentColor.copy(alpha = if (enabled) 1f else 0.38f),
+        modifier = modifier
+    ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+            Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(32.dp))
         }
     }
 }

@@ -223,6 +223,28 @@ val Icons.Filled.Repeat: ImageVector
         return repeatIcon!!
     }
 
+// material-icons-core 未收录 TrendingFlat（一条直箭头，代表「顺序播放/不循环」）图标，使用 Material 官方路径自定义
+private var trendingFlatIcon: ImageVector? = null
+
+val Icons.Filled.TrendingFlat: ImageVector
+    get() {
+        if (trendingFlatIcon != null) return trendingFlatIcon!!
+        trendingFlatIcon =
+            materialIcon(name = "Filled.TrendingFlat") {
+                materialPath {
+                    moveTo(22f, 12f)
+                    lineToRelative(-4f, -4f)
+                    verticalLineToRelative(3f)
+                    horizontalLineTo(3f)
+                    verticalLineToRelative(2f)
+                    horizontalLineToRelative(15f)
+                    verticalLineToRelative(3f)
+                    close()
+                }
+            }
+        return trendingFlatIcon!!
+    }
+
 // material-icons-core 未收录 Palette 图标，使用 Material 官方 palette 路径自定义
 private var paletteIcon: ImageVector? = null
 
