@@ -14,9 +14,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -231,14 +229,10 @@ private fun NcmApp(
     BackHandler(enabled = showNowPlaying) { showNowPlaying = false }
     BackHandler(enabled = currentPlaylistId != null) { currentPlaylistId = null }
 
-    // Material/Android 默认页面转场：标准 300ms + FastOutSlowInEasing（tween 默认曲线），
-    // 无弹簧过冲——右侧滑入淡入进入，原路滑出淡出退出，就是系统级最朴素的 push/pop 效果。
-    val defaultEnter =
-        fadeIn(tween(300)) +
-            slideInHorizontally(tween(300)) { it / 3 }
-    val defaultExit =
-        fadeOut(tween(300)) +
-            slideOutHorizontally(tween(300)) { it / 3 }
+    // Android 默认页面转场：纯淡入淡出（cross-fade），不带方向性滑动，
+    // 标准 300ms + Compose 默认曲线，是系统里最朴素、最不带“设计感”的转场效果。
+    val defaultEnter = fadeIn(tween(300))
+    val defaultExit = fadeOut(tween(300))
 
     // 展开播放页专用转场：从底部滑起 / 收回，跟“从 Minibar 展开”的方向直觉一致，
     // 区别于其他覆盖层的横向 push。
