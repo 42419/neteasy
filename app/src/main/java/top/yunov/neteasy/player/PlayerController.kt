@@ -8,7 +8,6 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
-import android.os.Build
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
@@ -201,8 +200,8 @@ class PlayerController(
         )
     }
 
-    /** 请求音频焦点（API 26+ 用 AudioFocusRequest，更低版本用旧版 API）。返回是否拿到焦点。 */
-    private fun requestAudioFocus(): Boolean = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    /** 请求音频焦点。minSdk 29，恒走 AudioFocusRequest。返回是否拿到焦点。 */
+    private fun requestAudioFocus(): Boolean {
         val attrs =
             AudioAttributes
                 .Builder()
@@ -216,24 +215,12 @@ class PlayerController(
                 .setOnAudioFocusChangeListener(focusChangeListener)
                 .build()
         audioFocusRequest = request
-        audioManager.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-    } else {
-        @Suppress("DEPRECATION")
-        audioManager.requestAudioFocus(
-            focusChangeListener,
-            AudioManager.STREAM_MUSIC,
-            AudioManager.AUDIOFOCUS_GAIN
-        ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        return audioManager.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
     }
 
     private fun abandonAudioFocus() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
-            audioFocusRequest = null
-        } else {
-            @Suppress("DEPRECATION")
-            audioManager.abandonAudioFocus(focusChangeListener)
-        }
+        audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+        audioFocusRequest = null
     }
 
     /** 启动播放前台服务：让通知栏/锁屏出现控制条，并让播放不因切后台被系统回收 */

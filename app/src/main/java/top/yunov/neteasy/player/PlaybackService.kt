@@ -5,13 +5,11 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
-import android.os.Build
-import android.support.v4.media.session.PlaybackStateCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
-import android.content.pm.ServiceInfo
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import androidx.media.app.NotificationCompat as MediaNotificationCompat
@@ -56,11 +54,7 @@ class PlaybackService : LifecycleService() {
                     this@PlaybackService,
                     NOTIFICATION_ID,
                     buildNotification(state),
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
-                    } else {
-                        0
-                    }
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
                 )
             }
         }
@@ -68,8 +62,14 @@ class PlaybackService : LifecycleService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
-        // 媒体按键（蓝牙耳机/车机物理键）路由到 MediaSession 的 callback
-        intent?.let { MediaButtonReceiver.handleIntent(player.mediaSession, it) }
+        when (intent?.action) {
+            ACTION_PLAY_PAUSE -> player.toggle()
+            ACTION_NEXT -> player.next()
+            ACTION_PREVIOUS -> player.previous()
+            ACTION_STOP -> player.release()
+            // 蓝牙耳机/车机物理键发来的原始媒体按键广播，路由给 MediaSession 的 callback
+            Intent.ACTION_MEDIA_BUTTON -> MediaButtonReceiver.handleIntent(player.mediaSession, intent)
+        }
         return START_STICKY
     }
 
@@ -89,6 +89,22 @@ class PlaybackService : LifecycleService() {
         }
     }
 
+    /**
+     * 通知按钮的 PendingIntent：直接指向本 Service 自己、带自定义 action，在 onStartCommand 里分发。
+     * 没有用 MediaButtonReceiver.buildMediaButtonPendingIntent()——那个要在 manifest 里反查目标组件，
+     * 查不到时返回 null，之前就是这里 `!!` 空指针崩的（一放歌就闪退）。这里改成完全自己掌控、
+     * 不依赖任何反查机制的写法，稳。
+     */
+    private fun actionPendingIntent(action: String): PendingIntent {
+        val intent = Intent(this, PlaybackService::class.java).setAction(action)
+        return PendingIntent.getService(
+            this,
+            action.hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
     private fun buildNotification(state: PlayerController.PlayerUiState): Notification {
         val song = state.song
 
@@ -102,17 +118,9 @@ class PlaybackService : LifecycleService() {
 
         val playPauseAction =
             if (state.isPlaying) {
-                NotificationCompat.Action(
-                    R.mipmap.ic_launcher,
-                    "暂停",
-                    MediaButtonReceiver.buildMediaButtonPendingIntent(this, PlaybackStateCompat.ACTION_PAUSE)!!
-                )
+                NotificationCompat.Action(R.mipmap.ic_launcher, "暂停", actionPendingIntent(ACTION_PLAY_PAUSE))
             } else {
-                NotificationCompat.Action(
-                    R.mipmap.ic_launcher,
-                    "播放",
-                    MediaButtonReceiver.buildMediaButtonPendingIntent(this, PlaybackStateCompat.ACTION_PLAY)!!
-                )
+                NotificationCompat.Action(R.mipmap.ic_launcher, "播放", actionPendingIntent(ACTION_PLAY_PAUSE))
             }
 
         val builder =
@@ -124,31 +132,13 @@ class PlaybackService : LifecycleService() {
                 .setLargeIcon(lastCoverBitmap)
                 .setContentIntent(contentIntent)
                 .setOngoing(state.isPlaying) // 播放中不可滑掉，暂停时可以滑掉关闭
-                .setDeleteIntent(
-                    MediaButtonReceiver.buildMediaButtonPendingIntent(this, PlaybackStateCompat.ACTION_STOP)!!
-                )
+                .setDeleteIntent(actionPendingIntent(ACTION_STOP))
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .addAction(
-                    NotificationCompat.Action(
-                        R.mipmap.ic_launcher,
-                        "上一首",
-                        MediaButtonReceiver.buildMediaButtonPendingIntent(
-                            this,
-                            PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
-                        )!!
-                    )
-                ).addAction(playPauseAction)
-                .addAction(
-                    NotificationCompat.Action(
-                        R.mipmap.ic_launcher,
-                        "下一首",
-                        MediaButtonReceiver.buildMediaButtonPendingIntent(
-                            this,
-                            PlaybackStateCompat.ACTION_SKIP_TO_NEXT
-                        )!!
-                    )
-                ).setStyle(
+                .addAction(NotificationCompat.Action(R.mipmap.ic_launcher, "上一首", actionPendingIntent(ACTION_PREVIOUS)))
+                .addAction(playPauseAction)
+                .addAction(NotificationCompat.Action(R.mipmap.ic_launcher, "下一首", actionPendingIntent(ACTION_NEXT)))
+                .setStyle(
                     MediaNotificationCompat.MediaStyle()
                         .setMediaSession(player.mediaSession.sessionToken)
                         .setShowActionsInCompactView(0, 1, 2)
@@ -157,7 +147,6 @@ class PlaybackService : LifecycleService() {
     }
 
     private fun ensureNotificationChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = getSystemService(NotificationManager::class.java)
         val channel =
             NotificationChannel(
@@ -174,5 +163,10 @@ class PlaybackService : LifecycleService() {
     companion object {
         private const val CHANNEL_ID = "playback_channel"
         private const val NOTIFICATION_ID = 2001
+        private const val ACTION_PLAY_PAUSE = "top.yunov.neteasy.action.PLAY_PAUSE"
+        private const val ACTION_NEXT = "top.yunov.neteasy.action.NEXT"
+        private const val ACTION_PREVIOUS = "top.yunov.neteasy.action.PREVIOUS"
+        private const val ACTION_STOP = "top.yunov.neteasy.action.STOP"
     }
 }
+

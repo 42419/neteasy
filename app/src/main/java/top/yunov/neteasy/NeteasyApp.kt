@@ -2,7 +2,6 @@ package top.yunov.neteasy
 
 import android.app.Application
 import android.content.Intent
-import android.os.Build
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,11 +35,7 @@ class NeteasyApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        val intent = Intent(this, NodeService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
+        // minSdk 29，startForegroundService 恒可用，不用再判断 Build.VERSION
+        startForegroundService(Intent(this, NodeService::class.java))
     }
 }

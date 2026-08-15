@@ -154,7 +154,7 @@ android {
 
     defaultConfig {
         applicationId = "top.yunov.neteasy"
-        minSdk = 23
+        minSdk = 29
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
