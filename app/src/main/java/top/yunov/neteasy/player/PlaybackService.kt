@@ -81,6 +81,8 @@ class PlaybackService : LifecycleService() {
                     .Builder(this)
                     .data(url)
                     .size(256)
+                    // 通知栏图标也是跨进程（System UI）渲染，硬件位图传不过去
+                    .allowHardware(false)
                     .build()
             val result = imageLoader.execute(request)
             ((result as? SuccessResult)?.drawable as? BitmapDrawable)?.bitmap

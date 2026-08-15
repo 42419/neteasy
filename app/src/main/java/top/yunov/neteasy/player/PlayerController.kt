@@ -4,6 +4,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
@@ -13,6 +15,9 @@ import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
 import androidx.core.content.ContextCompat
+import coil.imageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
 import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -93,6 +98,11 @@ class PlayerController(
     private var resumeOnFocusGain = false
     private var audioFocusRequest: AudioFocusRequest? = null
 
+    // MediaSession metadata 里塞的封面 Bitmap（按 URL 缓存，换歌才重新下载）
+    private var lastArtUrl: String? = null
+    private var lastArtBitmap: Bitmap? = null
+    private var artLoadJob: Job? = null
+
     private val focusChangeListener =
         AudioManager.OnAudioFocusChangeListener { change ->
             when (change) {
@@ -172,14 +182,25 @@ class PlayerController(
         val song = s.song
         mediaSession.isActive = song != null
         if (song == null) return
-        mediaSession.setMetadata(
-            MediaMetadataCompat.Builder()
-                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, song.name)
-                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, song.artists)
-                .putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, song.picUrl)
-                .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, s.durationMs)
-                .build()
-        )
+
+        // 封面：系统「控制中心/媒体控制卡片」这类界面是另一个进程直接读 MediaSession 的
+        // metadata，不会自己联网下载图片——光给一个 http 链接字符串没用，必须把解码好的
+        // Bitmap 塞进去才能显示。这里按 URL 缓存，换歌才重新下载，不阻塞下面的状态同步。
+        if (song.picUrl.isNotBlank() && song.picUrl != lastArtUrl) {
+            lastArtUrl = song.picUrl
+            lastArtBitmap = null
+            artLoadJob?.cancel()
+            artLoadJob =
+                scope.launch {
+                    val bmp = loadCoverBitmap(song.picUrl)
+                    if (song.picUrl == lastArtUrl) {
+                        lastArtBitmap = bmp
+                        setSessionMetadata(song, s.durationMs)
+                    }
+                }
+        }
+        setSessionMetadata(song, s.durationMs)
+
         val actions =
             PlaybackStateCompat.ACTION_PLAY_PAUSE or
                 PlaybackStateCompat.ACTION_PLAY or
@@ -198,6 +219,35 @@ class PlayerController(
                 )
                 .build()
         )
+    }
+
+    private fun setSessionMetadata(song: PlayerSong, durationMs: Long) {
+        val builder =
+            MediaMetadataCompat
+                .Builder()
+                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, song.name)
+                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, song.artists)
+                .putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, song.picUrl)
+                .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, durationMs)
+        lastArtBitmap?.let { builder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, it) }
+        mediaSession.setMetadata(builder.build())
+    }
+
+    private suspend fun loadCoverBitmap(url: String): Bitmap? = try {
+        val request =
+            ImageRequest
+                .Builder(appContext)
+                .data(url)
+                .size(512)
+                // 会被系统 UI 跨进程读取（Binder 传输），硬件位图（HARDWARE config）
+                // 传不过去，必须强制用软件位图
+                .allowHardware(false)
+                .build()
+        val result = appContext.imageLoader.execute(request)
+        ((result as? SuccessResult)?.drawable as? BitmapDrawable)?.bitmap
+    } catch (e: Exception) {
+        Log.e("Player", "封面加载失败: $url", e)
+        null
     }
 
     /** 请求音频焦点。minSdk 29，恒走 AudioFocusRequest。返回是否拿到焦点。 */
