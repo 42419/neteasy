@@ -20,7 +20,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
@@ -224,11 +223,6 @@ fun ProfileScreen(
                     color = MaterialTheme.colorScheme.outlineVariant
                 )
                 MenuRow(icon = Icons.Filled.Settings, title = "设置", onClick = onOpenSettings)
-                HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = 20.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant
-                )
-                MenuRow(icon = Icons.Filled.Share, title = "分享")
             }
 
             // 我创建/收藏的歌单：登录后才有，系统「喜欢的音乐」歌单已经摘到上面的菜单行了
@@ -315,9 +309,12 @@ private fun PlaylistRow(playlist: Playlist, onClick: () -> Unit) {
 /** 菜单行：圆形图标容器 + 标题 + 箭头。onClick 为 null 时不响应点击 */
 @Composable
 private fun MenuRow(icon: ImageVector, title: String, onClick: (() -> Unit)? = null) {
-    val base = Modifier.fillMaxWidth().padding(16.dp)
+    // clickable 要放在 padding 之前，点击高亮/涟漪范围才是整行，而不是缩进后剩下的一小块
+    val base = Modifier.fillMaxWidth()
     Row(
-        modifier = if (onClick != null) base.clickable(onClick = onClick) else base,
+        modifier =
+        (if (onClick != null) base.clickable(onClick = onClick) else base)
+            .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
