@@ -225,6 +225,9 @@ dependencies {
     // M3：网络 + 图片加载（后端在 127.0.0.1 本地，OkHttp 轻量封装）
     implementation(libs.okhttp)
     implementation(libs.coil.compose)
+    // 播放系统集成：音频焦点 + MediaSession（锁屏/通知栏/蓝牙耳机控制）+ 前台播放服务
+    implementation(libs.androidx.media)
+    implementation(libs.androidx.lifecycle.service)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

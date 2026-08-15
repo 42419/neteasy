@@ -25,6 +25,11 @@ class NcmRepository(private val api: ApiClient) {
         api.get("/playlist/track/all", mapOf("id" to "$id", "limit" to "$limit"))
     )
 
+    /** 当前登录用户创建/收藏的歌单（含系统「喜欢的音乐」歌单）。未登录调用会返回空列表。 */
+    suspend fun userPlaylists(uid: Long): List<Playlist> = JsonParser.parseUserPlaylists(
+        api.get("/user/playlist", mapOf("uid" to "$uid", "limit" to "1000"))
+    )
+
     suspend fun search(keywords: String, limit: Int = 30): List<Song> {
         val songs =
             JsonParser.parseSearchSongs(

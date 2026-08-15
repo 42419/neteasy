@@ -49,6 +49,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.CookieStore
 import top.yunov.neteasy.data.NcmRepository
+import top.yunov.neteasy.data.Playlist
 import top.yunov.neteasy.ui.theme.ButtonShape
 
 /**
@@ -63,12 +64,14 @@ fun ProfileScreen(
     refreshKey: Int = 0,
     onLoginClick: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenPlaylist: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var nickname by remember { mutableStateOf<String?>(null) }
     var avatarUrl by remember { mutableStateOf<String?>(null) }
     var checking by remember { mutableStateOf(true) }
     var logoutRefreshKey by remember { mutableIntStateOf(0) }
+    var playlists by remember { mutableStateOf<List<Playlist>>(emptyList()) }
 
     // 外部登录成功 refreshKey 变化 或 本页登出 logoutRefreshKey 变化 都重新加载
     LaunchedEffect(refreshKey, logoutRefreshKey) {
@@ -80,8 +83,23 @@ fun ProfileScreen(
         val profile = info?.optJSONObject("profile")
         nickname = profile?.optString("nickname")?.takeIf { it.isNotBlank() }
         avatarUrl = profile?.optString("avatarUrl")?.takeIf { it.isNotBlank() }
+        val uid = profile?.optLong("userId") ?: 0L
+        playlists =
+            if (uid != 0L) {
+                try {
+                    withContext(Dispatchers.IO) { repository.userPlaylists(uid) }
+                } catch (e: Exception) {
+                    emptyList()
+                }
+            } else {
+                emptyList()
+            }
         checking = false
     }
+
+    // 系统「喜欢的音乐」歌单单独摘出来给上面的“喜欢”菜单行用；其余是用户自建/收藏的普通歌单
+    val likedPlaylist = playlists.firstOrNull { it.isLikedSongs }
+    val myPlaylists = playlists.filterNot { it.isLikedSongs }
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
@@ -196,7 +214,11 @@ fun ProfileScreen(
                     .clip(MaterialTheme.shapes.extraLarge)
                     .background(MaterialTheme.colorScheme.surfaceContainerLow)
             ) {
-                MenuRow(icon = Icons.Filled.Favorite, title = "喜欢")
+                MenuRow(
+                    icon = Icons.Filled.Favorite,
+                    title = "喜欢",
+                    onClick = likedPlaylist?.let { pl -> { onOpenPlaylist(pl.id) } }
+                )
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = 20.dp),
                     color = MaterialTheme.colorScheme.outlineVariant
@@ -209,6 +231,33 @@ fun ProfileScreen(
                 MenuRow(icon = Icons.Filled.Share, title = "分享")
             }
 
+            // 我创建/收藏的歌单：登录后才有，系统「喜欢的音乐」歌单已经摘到上面的菜单行了
+            if (myPlaylists.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(20.dp))
+                Text(
+                    "我的歌单",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 10.dp)
+                )
+                Column(
+                    modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(MaterialTheme.shapes.extraLarge)
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                ) {
+                    myPlaylists.forEachIndexed { index, playlist ->
+                        PlaylistRow(playlist = playlist, onClick = { onOpenPlaylist(playlist.id) })
+                        if (index != myPlaylists.lastIndex) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 20.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant
+                            )
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(20.dp))
 
             Text(
@@ -219,6 +268,47 @@ fun ProfileScreen(
                 modifier = Modifier.fillMaxWidth()
             )
         }
+    }
+}
+
+/** 歌单行（我的歌单列表用）：方形封面 + 名称 + 歌曲数 */
+@Composable
+private fun PlaylistRow(playlist: Playlist, onClick: () -> Unit) {
+    Row(
+        modifier =
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AsyncImage(
+            model = playlist.coverUrl.ifEmpty { null },
+            contentDescription = null,
+            modifier =
+            Modifier
+                .size(48.dp)
+                .clip(MaterialTheme.shapes.small),
+            contentScale = ContentScale.Crop
+        )
+        Column(
+            modifier =
+            Modifier
+                .weight(1f)
+                .padding(start = 16.dp)
+        ) {
+            Text(playlist.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
+            Text(
+                "${playlist.trackCount} 首",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Icon(
+            Icons.AutoMirrored.Filled.ArrowForward,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

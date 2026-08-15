@@ -1,8 +1,19 @@
 package top.yunov.neteasy.player
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.media.MediaPlayer
+import android.os.Build
+import android.support.v4.media.MediaMetadataCompat
+import android.support.v4.media.session.MediaSessionCompat
+import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
+import androidx.core.content.ContextCompat
 import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,15 +32,18 @@ import top.yunov.neteasy.data.NcmRepository
 enum class RepeatMode { OFF, ALL, ONE }
 
 /**
- * 播放器控制器：
+ * 播放器控制器（App 级单例，不跟着 Activity 走）：
  * - 队列：currentQueue + currentIndex，支持整队播放 / 上一首 / 下一首 / 自动连播 / 跳转到队列中任意一首
  * - 状态：PlayerUiState（isPlaying / song / position / duration / 队列）驱动 UI
  * - 音质：qualityLevel，切换时重新解析当前歌曲 URL 并尽量从原位置续播
  * - URL 解析：内部持有 repository，播队列时自己按需解析每首歌的可播放地址
+ * - 系统集成：音频焦点（来电/其他 App 播放时暂停或降音）、拔耳机自动暂停、
+ *   MediaSession（驱动锁屏/通知栏/蓝牙耳机的播放控制），配合 [PlaybackService] 提供前台通知
  */
 class PlayerController(
     private val scope: CoroutineScope,
     private val repository: NcmRepository,
+    private val appContext: Context,
     initialQuality: AudioQuality = AudioQuality.EXHIGH
 ) {
     data class PlayerUiState(
@@ -73,6 +87,162 @@ class PlayerController(
     private var queueIndex: Int = -1
     private var loadGeneration = 0 // 防止旧的异步 URL 解析在新一首播放请求之后回来，覆盖新状态
     private var qualityLevel: String = initialQuality.level
+
+    // ---------- 系统音频集成 ----------
+
+    private val audioManager = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private var resumeOnFocusGain = false
+    private var audioFocusRequest: AudioFocusRequest? = null
+
+    private val focusChangeListener =
+        AudioManager.OnAudioFocusChangeListener { change ->
+            when (change) {
+                // 彻底失去焦点（别的 App 要长期播放）：暂停并交还焦点，不自动恢复
+                AudioManager.AUDIOFOCUS_LOSS -> {
+                    resumeOnFocusGain = false
+                    pauseInternal()
+                    abandonAudioFocus()
+                }
+                // 短暂失去（来电、语音助手等）：暂停，对方结束后如果原本在播就自动恢复
+                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                    resumeOnFocusGain = _state.value.isPlaying
+                    pauseInternal()
+                }
+                // 短暂共享（导航提示音等）：降音量而不是暂停
+                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                    mediaPlayer?.setVolume(0.2f, 0.2f)
+                }
+                AudioManager.AUDIOFOCUS_GAIN -> {
+                    mediaPlayer?.setVolume(1f, 1f)
+                    if (resumeOnFocusGain) {
+                        resumeOnFocusGain = false
+                        resumeInternal()
+                    }
+                }
+            }
+        }
+
+    /** 拔耳机 / 蓝牙耳机断开：立即暂停，避免突然外放吓到人 */
+    private val becomingNoisyReceiver =
+        object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                if (intent.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
+                    pauseInternal()
+                }
+            }
+        }
+
+    /** 系统媒体会话：驱动锁屏/通知栏/蓝牙耳机/车机的播放控制，[PlaybackService] 用它的 sessionToken 挂通知 */
+    val mediaSession: MediaSessionCompat =
+        MediaSessionCompat(appContext, "NeteasyPlayback").apply {
+            setCallback(
+                object : MediaSessionCompat.Callback() {
+                    override fun onPlay() = resumeInternal()
+
+                    override fun onPause() = pauseInternal()
+
+                    override fun onSkipToNext() = next()
+
+                    override fun onSkipToPrevious() = previous()
+
+                    override fun onSeekTo(pos: Long) = seekTo(pos.toInt())
+
+                    override fun onStop() = release()
+                }
+            )
+            setFlags(
+                MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or
+                    MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS
+            )
+        }
+
+    init {
+        ContextCompat.registerReceiver(
+            appContext,
+            becomingNoisyReceiver,
+            IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        // 每次状态变化都同步一份给系统媒体会话——锁屏/通知栏/耳机显示的标题、进度、可用操作全靠这个
+        scope.launch {
+            state.collect { updateMediaSession(it) }
+        }
+    }
+
+    private fun updateMediaSession(s: PlayerUiState) {
+        val song = s.song
+        mediaSession.isActive = song != null
+        if (song == null) return
+        mediaSession.setMetadata(
+            MediaMetadataCompat.Builder()
+                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, song.name)
+                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, song.artists)
+                .putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, song.picUrl)
+                .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, s.durationMs)
+                .build()
+        )
+        val actions =
+            PlaybackStateCompat.ACTION_PLAY_PAUSE or
+                PlaybackStateCompat.ACTION_PLAY or
+                PlaybackStateCompat.ACTION_PAUSE or
+                PlaybackStateCompat.ACTION_SEEK_TO or
+                PlaybackStateCompat.ACTION_STOP or
+                (if (s.hasNext) PlaybackStateCompat.ACTION_SKIP_TO_NEXT else 0L) or
+                (if (s.hasPrevious) PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS else 0L)
+        mediaSession.setPlaybackState(
+            PlaybackStateCompat.Builder()
+                .setActions(actions)
+                .setState(
+                    if (s.isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED,
+                    s.positionMs,
+                    1f
+                )
+                .build()
+        )
+    }
+
+    /** 请求音频焦点（API 26+ 用 AudioFocusRequest，更低版本用旧版 API）。返回是否拿到焦点。 */
+    private fun requestAudioFocus(): Boolean = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val attrs =
+            AudioAttributes
+                .Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .build()
+        val request =
+            AudioFocusRequest
+                .Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(attrs)
+                .setOnAudioFocusChangeListener(focusChangeListener)
+                .build()
+        audioFocusRequest = request
+        audioManager.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    } else {
+        @Suppress("DEPRECATION")
+        audioManager.requestAudioFocus(
+            focusChangeListener,
+            AudioManager.STREAM_MUSIC,
+            AudioManager.AUDIOFOCUS_GAIN
+        ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    }
+
+    private fun abandonAudioFocus() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+            audioFocusRequest = null
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.abandonAudioFocus(focusChangeListener)
+        }
+    }
+
+    /** 启动播放前台服务：让通知栏/锁屏出现控制条，并让播放不因切后台被系统回收 */
+    private fun ensurePlaybackServiceRunning() {
+        val intent = Intent(appContext, PlaybackService::class.java)
+        ContextCompat.startForegroundService(appContext, intent)
+    }
+
+    // ---------- 播放控制 ----------
 
     /**
      * 用一份新队列替换当前队列，并从 [startIndex] 开始播放（自动解析 URL）。
@@ -136,11 +306,22 @@ class PlayerController(
     }
 
     fun toggle() {
+        if (_state.value.isPlaying) pauseInternal() else resumeInternal()
+    }
+
+    private fun pauseInternal() {
         val p = mediaPlayer ?: return
         if (p.isPlaying) {
             p.pause()
             _state.value = _state.value.copy(isPlaying = false)
-        } else {
+        }
+    }
+
+    private fun resumeInternal() {
+        val p = mediaPlayer ?: return
+        if (!p.isPlaying) {
+            if (!requestAudioFocus()) return // 拿不到焦点（比如通话中）就不硬播
+            ensurePlaybackServiceRunning()
             p.start()
             _state.value = _state.value.copy(isPlaying = true)
             startProgressTicker()
@@ -191,12 +372,13 @@ class PlayerController(
         }
     }
 
-    /** 完整停止：释放播放器并清空状态（含队列，音质/循环模式偏好保留） */
+    /** 完整停止：释放播放器、交还音频焦点、清空状态（音质/循环模式偏好保留） */
     fun release() {
         releasePlayerOnly()
+        abandonAudioFocus()
+        _state.value = PlayerUiState(quality = _state.value.quality, repeatMode = _state.value.repeatMode)
         queue = emptyList()
         queueIndex = -1
-        _state.value = PlayerUiState(quality = _state.value.quality, repeatMode = _state.value.repeatMode)
     }
 
     /** 解析队列里当前下标对应的歌曲 URL 并播放；异步解析期间已带上代际号防止过期回调乱序覆盖状态 */
@@ -280,13 +462,17 @@ class PlayerController(
             p.setDataSource(url)
             p.setOnPreparedListener { mp ->
                 if (resumeAtMs > 0) mp.seekTo(resumeAtMs.toInt())
+                // 新的一首开始播放前先抢音频焦点；没抢到（比如正在通话）就只加载不出声
+                val granted = if (autoPlay) requestAudioFocus() else true
+                val willPlay = autoPlay && granted
                 _state.value =
                     _state.value.copy(
-                        isPlaying = autoPlay,
+                        isPlaying = willPlay,
                         durationMs = mp.duration.toLong(),
                         positionMs = resumeAtMs
                     )
-                if (autoPlay) {
+                if (willPlay) {
+                    ensurePlaybackServiceRunning()
                     mp.start()
                     startProgressTicker()
                 }

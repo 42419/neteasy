@@ -6,14 +6,18 @@ import org.json.JSONObject
 /** 首页轮播 Banner */
 data class Banner(val picUrl: String, val targetId: Long, val typeTitle: String?)
 
-/** 歌单（推荐页 / 详情） */
+/** 歌单（推荐页 / 详情 / 我创建与收藏的） */
 data class Playlist(
     val id: Long,
     val name: String,
     val coverUrl: String,
     val playCount: Long = 0,
-    val trackCount: Int = 0
-)
+    val trackCount: Int = 0,
+    /** 特殊歌单标记：5 = 系统「喜欢的音乐」歌单，其余为普通歌单（自建/收藏） */
+    val specialType: Int = 0
+) {
+    val isLikedSongs: Boolean get() = specialType == 5
+}
 
 /** 歌曲 */
 data class Song(
@@ -64,6 +68,25 @@ object JsonParser {
                 coverUrl = o.optString("picUrl"),
                 playCount = o.optLong("playCount"),
                 trackCount = o.optInt("trackCount")
+            )
+        }
+    }
+
+    /** 当前登录用户创建/收藏的歌单列表（含系统「喜欢的音乐」歌单，通常排第一个） */
+    fun parseUserPlaylists(root: JSONObject): List<Playlist> {
+        val arr = root.optJSONArray("playlist") ?: return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val id = o.optLong("id")
+            val name = o.optString("name")
+            if (id == 0L || name.isEmpty()) return@mapNotNull null
+            Playlist(
+                id = id,
+                name = name,
+                coverUrl = o.optString("coverImgUrl"),
+                playCount = o.optLong("playCount"),
+                trackCount = o.optInt("trackCount"),
+                specialType = o.optInt("specialType")
             )
         }
     }

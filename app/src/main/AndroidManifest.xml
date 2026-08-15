@@ -7,6 +7,8 @@
     <!-- 前台服务：保持 Node 后端在后台存活 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- 前台服务：播放通知（锁屏/通知栏控制），Android 14+ 需要显式声明该类型权限 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- Android 13+ 前台服务通知（缺失时服务照常运行，仅通知不可见） -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
@@ -39,6 +41,16 @@
             android:name=".NodeService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- 播放前台服务：锁屏/通知栏控制条 + 音频焦点/蓝牙耳机物理按键响应 -->
+        <service
+            android:name=".player.PlaybackService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>

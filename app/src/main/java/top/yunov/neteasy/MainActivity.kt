@@ -24,14 +24,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -40,12 +38,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.zIndex
-import kotlinx.coroutines.launch
-import top.yunov.neteasy.data.ApiClient
-import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.SettingsStore
 import top.yunov.neteasy.data.ThemeMode
-import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.ui.HomeScreen
 import top.yunov.neteasy.ui.LoginScreen
 import top.yunov.neteasy.ui.Minibar
@@ -151,19 +145,15 @@ private fun NcmApp(
     dynamicColor: Boolean = true,
     onDynamicColorChange: (Boolean) -> Unit = {}
 ) {
-    val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val app = context.applicationContext as NeteasyApp
 
-    // 网络层 + 播放器（组合内单例）
-    val apiClient = remember { ApiClient(context) }
-    val repository = remember { NcmRepository(apiClient) }
-    val cookieStore = remember { apiClient.cookieStore }
-    val player = remember { PlayerController(scope, repository, initialQuality = settings.preferredAudioQuality) }
-
-    // 组合销毁时释放 MediaPlayer，防 Activity 重建（旋转）泄漏音频资源
-    DisposableEffect(player) {
-        onDispose { player.release() }
-    }
+    // 网络层 + 播放器现在是 App 级单例（NeteasyApp 持有），不再用 remember{} 在组合内创建——
+    // 否则 Activity 重建/组合销毁时播放会被打断（之前这里还有个 DisposableEffect 会调用
+    // player.release()，现在播放器要独立于 Activity 生命周期继续跑，所以整段去掉了）。
+    val repository = app.repository
+    val cookieStore = app.apiClient.cookieStore
+    val player = app.playerController
 
     // 导航状态
     // 动态取色仅 Android 12+ 可用（系统壁纸色提取）
@@ -227,6 +217,7 @@ private fun NcmApp(
                     refreshKey = profileRefreshKey,
                     onLoginClick = { showLogin = true },
                     onOpenSettings = { showSettings = true },
+                    onOpenPlaylist = { id -> currentPlaylistId = id },
                     modifier = Modifier.fillMaxSize()
                 )
             }
