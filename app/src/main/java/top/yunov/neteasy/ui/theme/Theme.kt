@@ -10,7 +10,10 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import top.yunov.neteasy.data.SettingsStore
+import top.yunov.neteasy.data.ThemeMode
 
 private val LightColorScheme =
     lightColorScheme(
@@ -109,4 +112,25 @@ fun NeteasyTheme(
         shapes = Shapes,
         content = content
     )
+}
+
+/**
+ * 独立 Activity（设置/登录/搜索/歌单详情，拆出来是为了让系统接管这几个页面之间的
+ * 原生转场动画）套主题用的便捷封装：读一次已持久化的设置直接应用，本身不提供
+ * 修改入口——真要改深色模式/动态取色去设置页改，改完存到 SharedPreferences，
+ * 这几个页面下次单独启动时自然读到最新值，不需要跨 Activity 实时同步。
+ */
+@Composable
+fun NeteasyThemedScreen(content: @Composable () -> Unit) {
+    val context = LocalContext.current
+    val settings = remember { SettingsStore(context) }
+    val darkTheme =
+        when (settings.themeMode) {
+            ThemeMode.SYSTEM -> isSystemInDarkTheme()
+            ThemeMode.LIGHT -> false
+            ThemeMode.DARK -> true
+        }
+    NeteasyTheme(darkTheme = darkTheme, dynamicColor = settings.dynamicColor) {
+        content()
+    }
 }

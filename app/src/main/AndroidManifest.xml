@@ -36,6 +36,34 @@
             </intent-filter>
         </activity>
 
+        <!-- 以下四个页面拆成独立 Activity，交给系统接管原生页面转场动画（不自己模拟）；
+             parentActivityName 是为了让系统「上滑手势/Up 按钮」知道逻辑上的父页面是谁 -->
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:label="设置"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.Neteasy" />
+        <activity
+            android:name=".LoginActivity"
+            android:exported="false"
+            android:label="登录"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.Neteasy" />
+        <activity
+            android:name=".SearchActivity"
+            android:exported="false"
+            android:label="搜索"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.Neteasy"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".PlaylistActivity"
+            android:exported="false"
+            android:label="歌单"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.Neteasy" />
+
         <!-- 内嵌 Node.js 后端前台服务 -->
         <service
             android:name=".NodeService"
