@@ -1,8 +1,6 @@
 package top.yunov.neteasy.ui
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -51,6 +49,7 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.isActive
 import top.yunov.neteasy.Screen
 import top.yunov.neteasy.data.AudioQuality
+import top.yunov.neteasy.data.thumbnail
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.ui.theme.ExpressiveMotion
 
@@ -63,18 +62,16 @@ val LocalNavState =
     }
 
 /**
- * 底部区域：MD3 Expressive 迷你播放器（波浪式进度条 + 上一首/下一首/播放 + 音质切换 + 播放队列入口）
- * + 底部导航。
+ * 底部区域：紧凑单行迷你播放器（参考主流音乐 App 折叠态样式：封面 + 歌名/歌手 +
+ * 播放暂停 + 播放队列，点击展开全屏播放页）+ 底部导航。
+ * 上一首/下一首/进度条/音质切换这些完整控制留在展开播放页（NowPlayingScreen），
+ * 折叠态只做最核心的信息展示和播放/暂停，不重复堆控件。
  */
 @Composable
 fun Minibar(
     state: PlayerController.PlayerUiState,
     onToggle: () -> Unit,
-    onSeek: (Int) -> Unit,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
     onOpenQueue: () -> Unit,
-    onQualityChange: (AudioQuality) -> Unit,
     onExpand: () -> Unit,
     navState: NavState
 ) {
@@ -82,116 +79,53 @@ fun Minibar(
         Column {
             val song = state.song
             if (song != null) {
-                // 迷你播放器卡片（顶部大圆角 + 阴影）
+                // 悬浮胶囊卡片：整条可点展开，圆角 + 阴影，四周留白让它像“浮”在导航栏上方
                 Surface(
-                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                    shadowElevation = 8.dp
+                    onClick = onExpand,
+                    modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    shadowElevation = 6.dp
                 ) {
-                    Column(modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) {
-                        // 平滑进度：每帧按经过的真实时间插值，避免跟着 500ms 一次的轮询“一顿一顿”前进
-                        val smoothPositionMs =
-                            rememberSmoothPositionMs(
-                                positionMs = state.positionMs,
-                                isPlaying = state.isPlaying,
-                                durationMs = state.durationMs,
-                                songId = song.id
-                            )
-
-                        // 波浪式进度条（官方 LinearWavyProgressIndicator + 拖动 seek）
-                        SeekWaveProgressBar(
-                            progress =
-                            if (state.durationMs > 0) {
-                                smoothPositionMs.toFloat() / state.durationMs
-                            } else {
-                                0f
-                            },
-                            onSeek = { fraction ->
-                                onSeek((fraction * state.durationMs).toInt())
-                            },
-                            animating = state.isPlaying,
-                            modifier = Modifier.padding(horizontal = 16.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AsyncImage(
+                            model = song.picUrl.thumbnail(160).ifEmpty { null },
+                            contentDescription = null,
+                            modifier =
+                            Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(14.dp)),
+                            contentScale = ContentScale.Crop
                         )
-
-                        // 信息行：封面 + 歌名/歌手 + 音质切换 + 播放队列入口（点封面/歌名区域展开全屏播放页）
-                        Row(
+                        Column(
                             modifier =
                             Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .weight(1f)
+                                .padding(horizontal = 12.dp)
                         ) {
-                            AsyncImage(
-                                model = song.picUrl.ifEmpty { null },
-                                contentDescription = null,
-                                modifier =
-                                Modifier
-                                    .size(44.dp)
-                                    .clip(MaterialTheme.shapes.small)
-                                    .clickable(onClick = onExpand),
-                                contentScale = ContentScale.Crop
+                            Text(
+                                text = song.name,
+                                style = MaterialTheme.typography.titleSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
-                            Column(
-                                modifier =
-                                Modifier
-                                    .weight(1f)
-                                    .padding(horizontal = 12.dp)
-                                    .clickable(onClick = onExpand)
-                            ) {
-                                Text(
-                                    text = song.name,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = song.artists,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            // 只列出这首歌实际存在的音质档位；还不知道（空集合）时不显示，不瞎列
-                            if (song.availableQualities.isNotEmpty()) {
-                                QualityChip(
-                                    current = state.quality,
-                                    available = song.availableQualities,
-                                    onSelect = onQualityChange
-                                )
-                                Box(modifier = Modifier.size(4.dp))
-                            }
-                            IconButton(onClick = onOpenQueue) {
-                                Icon(Icons.Filled.QueueMusic, contentDescription = "播放队列")
-                            }
+                            Text(
+                                text = song.artists,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
-
-                        // 播放控制行：上一首 / 播放暂停 / 下一首
-                        Row(
-                            modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 14.dp),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(onClick = onPrevious, enabled = state.hasPrevious) {
-                                Icon(
-                                    Icons.Filled.SkipPrevious,
-                                    contentDescription = "上一首",
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
-                            Box(modifier = Modifier.size(20.dp))
-                            PlayButton(isPlaying = state.isPlaying, onClick = onToggle)
-                            Box(modifier = Modifier.size(20.dp))
-                            IconButton(onClick = onNext, enabled = state.hasNext) {
-                                Icon(
-                                    Icons.Filled.SkipNext,
-                                    contentDescription = "下一首",
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
+                        PlayButton(isPlaying = state.isPlaying, onClick = onToggle, size = 40.dp)
+                        IconButton(onClick = onOpenQueue) {
+                            Icon(Icons.Filled.QueueMusic, contentDescription = "播放队列")
                         }
                     }
                 }
@@ -216,7 +150,7 @@ fun Minibar(
 
 /**
  * 音质切换按钮：只展示 [available]（这首歌实际存在的音质档位）里的选项，不存在的档位不列出。
- * 当前选中档位用主题色高亮。
+ * 当前选中档位用主题色高亮。（Minibar 折叠态已不用，展开播放页 NowPlayingScreen 在用）
  */
 @Composable
 internal fun QualityChip(current: AudioQuality, available: Set<AudioQuality>, onSelect: (AudioQuality) -> Unit) {
@@ -283,7 +217,7 @@ internal fun rememberSmoothPositionMs(
     return displayed
 }
 
-/** 毫秒 → mm:ss（用于展开播放页的时间标签，Minibar 本身不展示时间文字，节省空间） */
+/** 毫秒 → mm:ss（用于展开播放页的时间标签） */
 internal fun formatTime(ms: Long): String {
     val totalSec = (ms / 1000).coerceAtLeast(0)
     val m = totalSec / 60

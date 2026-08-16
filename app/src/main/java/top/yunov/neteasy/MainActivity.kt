@@ -187,17 +187,12 @@ private fun NcmApp(settings: SettingsStore) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
+            // Minibar 是折叠态紧凑迷你播放器，上一首/下一首/进度条/音质切换这些完整控制
+            // 已经不在这一层了——留在点开后的 NowPlayingScreen 展开播放页里
             Minibar(
                 state = playerState,
                 onToggle = { player.toggle() },
-                onSeek = { player.seekTo(it) },
-                onPrevious = { player.previous() },
-                onNext = { player.next() },
                 onOpenQueue = { showQueue = true },
-                onQualityChange = { quality ->
-                    settings.preferredAudioQuality = quality
-                    player.setQuality(quality)
-                },
                 onExpand = { showNowPlaying = true },
                 navState = NavState(screen, { screen = it })
             )

@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,9 +13,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Favorite
@@ -49,6 +49,7 @@ import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.CookieStore
 import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.Playlist
+import top.yunov.neteasy.data.thumbnail
 import top.yunov.neteasy.ui.theme.ButtonShape
 
 /**
@@ -101,17 +102,17 @@ fun ProfileScreen(
     val myPlaylists = playlists.filterNot { it.isLikedSongs }
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            modifier =
-            Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(20.dp)
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(20.dp)
         ) {
-            Text("我的", style = MaterialTheme.typography.headlineLarge)
-            Spacer(modifier = Modifier.height(24.dp))
+            item {
+                Text("我的", style = MaterialTheme.typography.headlineLarge)
+            }
+            item { Spacer(modifier = Modifier.height(24.dp)) }
 
             // 用户卡片
+            item {
             Column(
                 modifier =
                 Modifier
@@ -125,7 +126,7 @@ fun ProfileScreen(
                     checking -> LoadingIndicator()
                     nickname != null -> {
                         AsyncImage(
-                            model = avatarUrl,
+                            model = avatarUrl?.thumbnail(200),
                             contentDescription = "头像",
                             modifier =
                             Modifier
@@ -202,37 +203,12 @@ fun ProfileScreen(
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // 功能菜单
-            Column(
-                modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .clip(MaterialTheme.shapes.extraLarge)
-                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            ) {
-                MenuRow(
-                    icon = Icons.Filled.Favorite,
-                    title = "喜欢",
-                    onClick = likedPlaylist?.let { pl -> { onOpenPlaylist(pl.id) } }
-                )
-                HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = 20.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant
-                )
-                MenuRow(icon = Icons.Filled.Settings, title = "设置", onClick = onOpenSettings)
             }
 
-            // 我创建/收藏的歌单：登录后才有，系统「喜欢的音乐」歌单已经摘到上面的菜单行了
-            if (myPlaylists.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(20.dp))
-                Text(
-                    "我的歌单",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(start = 4.dp, bottom = 10.dp)
-                )
+            item { Spacer(modifier = Modifier.height(20.dp)) }
+
+            // 功能菜单
+            item {
                 Column(
                     modifier =
                     Modifier
@@ -240,27 +216,62 @@ fun ProfileScreen(
                         .clip(MaterialTheme.shapes.extraLarge)
                         .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 ) {
-                    myPlaylists.forEachIndexed { index, playlist ->
-                        PlaylistRow(playlist = playlist, onClick = { onOpenPlaylist(playlist.id) })
-                        if (index != myPlaylists.lastIndex) {
-                            HorizontalDivider(
-                                modifier = Modifier.padding(horizontal = 20.dp),
-                                color = MaterialTheme.colorScheme.outlineVariant
-                            )
+                    MenuRow(
+                        icon = Icons.Filled.Favorite,
+                        title = "喜欢",
+                        onClick = likedPlaylist?.let { pl -> { onOpenPlaylist(pl.id) } }
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
+                    MenuRow(icon = Icons.Filled.Settings, title = "设置", onClick = onOpenSettings)
+                }
+            }
+
+            // 我创建/收藏的歌单：登录后才有，系统「喜欢的音乐」歌单已经摘到上面的菜单行了。
+            // 歌单数量通常不多（几十以内），包一层圆角容器整块渲染，不单独懒加载每一行
+            if (myPlaylists.isNotEmpty()) {
+                item { Spacer(modifier = Modifier.height(20.dp)) }
+                item {
+                    Text(
+                        "我的歌单",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(start = 4.dp, bottom = 10.dp)
+                    )
+                }
+                item {
+                    Column(
+                        modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(MaterialTheme.shapes.extraLarge)
+                            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    ) {
+                        myPlaylists.forEachIndexed { index, playlist ->
+                            PlaylistRow(playlist = playlist, onClick = { onOpenPlaylist(playlist.id) })
+                            if (index != myPlaylists.lastIndex) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 20.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            item { Spacer(modifier = Modifier.height(20.dp)) }
 
-            Text(
-                "数据来自本机 Node 服务（127.0.0.1:19800）\n登录状态保存在本机，不会上传",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
+            item {
+                Text(
+                    "数据来自本机 Node 服务（127.0.0.1:19800）\n登录状态保存在本机，不会上传",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 }
@@ -277,7 +288,7 @@ private fun PlaylistRow(playlist: Playlist, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         AsyncImage(
-            model = playlist.coverUrl.ifEmpty { null },
+            model = playlist.coverUrl.thumbnail(150).ifEmpty { null },
             contentDescription = null,
             modifier =
             Modifier

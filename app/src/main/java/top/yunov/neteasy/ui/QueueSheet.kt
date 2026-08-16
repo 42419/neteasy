@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import top.yunov.neteasy.data.thumbnail
 import top.yunov.neteasy.player.PlayerController
 
 /**
@@ -65,7 +66,7 @@ fun QueueSheet(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     AsyncImage(
-                        model = song.picUrl.ifEmpty { null },
+                        model = song.picUrl.thumbnail(150).ifEmpty { null },
                         contentDescription = null,
                         modifier =
                         Modifier

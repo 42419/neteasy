@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import top.yunov.neteasy.data.AudioQuality
+import top.yunov.neteasy.data.thumbnail
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.RepeatMode
 import top.yunov.neteasy.ui.theme.ExpressiveMotion
@@ -112,7 +113,7 @@ fun NowPlayingScreen(
 
             // 大封面
             AsyncImage(
-                model = song.picUrl.ifEmpty { null },
+                model = song.picUrl.thumbnail(900).ifEmpty { null },
                 contentDescription = null,
                 modifier =
                 Modifier

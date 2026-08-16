@@ -55,6 +55,7 @@ import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.Banner
 import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.Playlist
+import top.yunov.neteasy.data.thumbnail
 import top.yunov.neteasy.ui.theme.ExpressiveMotion
 
 /**
@@ -214,7 +215,7 @@ private fun BannerStrip(banners: List<Banner>) {
         ) {
             listItems(banners.take(5), key = { it.picUrl }) { banner ->
                 AsyncImage(
-                    model = banner.picUrl,
+                    model = banner.picUrl.thumbnail(1200, 600),
                     contentDescription = banner.typeTitle,
                     modifier =
                     Modifier
@@ -250,7 +251,7 @@ private fun PlaylistCard(playlist: Playlist, onClick: () -> Unit) {
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
     ) {
         AsyncImage(
-            model = playlist.coverUrl,
+            model = playlist.coverUrl.thumbnail(400),
             contentDescription = playlist.name,
             modifier =
             Modifier

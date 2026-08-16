@@ -42,6 +42,7 @@ import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.Playlist
 import top.yunov.neteasy.data.Song
+import top.yunov.neteasy.data.thumbnail
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.toPlayerSong
 import top.yunov.neteasy.ui.theme.ButtonShape
@@ -128,7 +129,7 @@ fun PlaylistScreen(playlistId: Long, repository: NcmRepository, player: PlayerCo
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     AsyncImage(
-                                        model = pl.coverUrl,
+                                        model = pl.coverUrl.thumbnail(360),
                                         contentDescription = null,
                                         modifier =
                                         Modifier

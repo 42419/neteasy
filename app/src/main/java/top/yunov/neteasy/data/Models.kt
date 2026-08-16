@@ -3,6 +3,18 @@ package top.yunov.neteasy.data
 import org.json.JSONArray
 import org.json.JSONObject
 
+/**
+ * 网易云图片 CDN 支持在链接后加 `?param=宽y高` 直接拿服务端裁好的缩略图；
+ * 不加的话给的是原图——原图动辄几百 KB 甚至更大，用来渲染列表里几十/上百 dp 的
+ * 小封面纯属浪费网络带宽和解码开销，是列表快速滑动时卡顿的头号元凶。
+ * [widthPx]/[heightPx] 是目标**像素**边长（不是 dp），调用处按实际显示尺寸估算传入，
+ * 略大于所需即可（不需要精确到像素级）。
+ */
+fun String.thumbnail(widthPx: Int, heightPx: Int = widthPx): String {
+    if (isBlank()) return this
+    return "$this?param=${widthPx}y$heightPx"
+}
+
 /** 首页轮播 Banner */
 data class Banner(val picUrl: String, val targetId: Long, val typeTitle: String?)
 

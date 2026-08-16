@@ -56,6 +56,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.Song
+import top.yunov.neteasy.data.thumbnail
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.toPlayerSong
 import top.yunov.neteasy.ui.theme.ButtonShape
@@ -200,7 +201,7 @@ fun SongRow(song: Song, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         AsyncImage(
-            model = song.picUrl.ifEmpty { null },
+            model = song.picUrl.thumbnail(160).ifEmpty { null },
             contentDescription = null,
             modifier =
             Modifier
