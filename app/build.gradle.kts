@@ -145,6 +145,25 @@ tasks.configureEach {
     }
 }
 
+// ===== 版本号跟随 git tag =====
+// 有 tag（如 v0.1.0）时 versionName=0.1.0、versionCode 按 主*10000+次*100+补丁 计算（0.1.0 → 100）；
+// 无 tag（本地开发分支）时回退到 0.0.1（versionCode 1）。
+// providers.exec 是配置缓存安全的写法（不要用 "git ...".execute()）。
+val gitTag: String =
+    try {
+        providers.exec {
+            commandLine("git", "describe", "--tags", "--abbrev=0")
+        }.standardOutput.asText.get().trim().removePrefix("v")
+    } catch (e: Exception) {
+        ""
+    }
+val appVersionName: String = gitTag.ifBlank { "0.0.1" }
+val appVersionCode: Int =
+    appVersionName.split(".").let { parts ->
+        val nums = parts.mapNotNull { it.takeWhile(Char::isDigit).toIntOrNull() } + listOf(0, 0, 0)
+        (nums[0] * 10000 + nums[1] * 100 + nums[2]).coerceAtLeast(1)
+    }
+
 android {
     namespace = "top.yunov.neteasy"
     // core-ktx 1.19.0 要求 compileSdk 37（SDK 已安装 android-37.0 平台）
@@ -156,8 +175,8 @@ android {
         applicationId = "top.yunov.neteasy"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
