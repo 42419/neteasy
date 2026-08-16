@@ -138,9 +138,10 @@ fun ProfileScreen(
                         Text(nickname!!, style = MaterialTheme.typography.titleLarge)
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            "已登录 · 可完整播放 VIP 歌曲",
+                            "已登录 · 可完整播放 VIP 歌曲\n（确保您有VIP权限）",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
                         )
                     }
                     else -> {
@@ -255,7 +256,7 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(20.dp))
 
             Text(
-                "数据来自本机 Node 服务（127.0.0.1:19800）\n登录状态保存在本机，不会上传",
+                "数据来自本地 Node 服务（127.0.0.1:19800）\n登录状态保存在本机，不会上传",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
