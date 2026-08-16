@@ -1,5 +1,8 @@
 package top.yunov.neteasy.ui
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,11 +27,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -39,6 +45,7 @@ import coil.compose.AsyncImage
 import top.yunov.neteasy.data.AudioQuality
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.RepeatMode
+import top.yunov.neteasy.ui.theme.ExpressiveMotion
 
 /**
  * 展开后的全屏播放页（点 Minibar 封面/歌名展开）：大标题 + 大封面 + 波浪进度条 + 播放控制。
@@ -156,7 +163,8 @@ fun NowPlayingScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             // 播放控制：参考 M3 Expressive 官方博客的大圆角方块按钮样式——
-            // 两侧浅色 tonal 方块（上一首/下一首），中间实心方块（播放/暂停）
+            // 两侧浅色 tonal 方块（上一首/下一首）比中间实心方块（播放/暂停）窄，
+            // 宽度比例照抄参考图（中间明显更宽，不是三等分）
             Row(
                 modifier = Modifier.fillMaxWidth().height(88.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -174,7 +182,7 @@ fun NowPlayingScreen(
                     contentDescription = if (state.isPlaying) "暂停" else "播放",
                     onClick = onToggle,
                     filled = true,
-                    modifier = Modifier.weight(1f).fillMaxHeight()
+                    modifier = Modifier.weight(1.5f).fillMaxHeight()
                 )
                 BigSquareButton(
                     icon = Icons.Filled.SkipNext,
@@ -233,6 +241,7 @@ fun NowPlayingScreen(
 /**
  * 大圆角方块控制按钮：参考 M3 Expressive 官方博客的播放控制样式。
  * [filled] 为 true 时是实心主色方块（播放/暂停这种主操作），否则是浅色 tonal 方块。
+ * 按下时有轻微缩小的弹性反馈（spatial spring，带回弹），是 M3 Expressive 按钮动效的核心手感。
  */
 @Composable
 private fun BigSquareButton(
@@ -255,13 +264,26 @@ private fun BigSquareButton(
         } else {
             MaterialTheme.colorScheme.onSecondaryContainer
         }
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.9f else 1f,
+        // spatial spring：位移/尺寸变化带回弹，是 MD3 Expressive 按钮按压反馈的标准手感
+        animationSpec = ExpressiveMotion.SpatialFast,
+        label = "controlButtonScale"
+    )
     Surface(
         onClick = onClick,
         enabled = enabled,
         shape = RoundedCornerShape(28.dp),
         color = containerColor,
         contentColor = contentColor.copy(alpha = if (enabled) 1f else 0.38f),
-        modifier = modifier
+        interactionSource = interactionSource,
+        modifier =
+        modifier.graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
             Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(32.dp))
