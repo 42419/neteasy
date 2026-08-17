@@ -181,12 +181,32 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        // 发布签名：优先用环境变量指定的固定 keystore（CI 从 GitHub Secrets 解出来传进来）。
+        // 本地没配这几个环境变量时，release 构建会退回到 debug 签名（能编译能装，
+        // 但每台机器的 debug 签名不一样，不能拿来当正式对外发布的包）。
+        create("release") {
+            val keystorePath = System.getenv("NETEASY_KEYSTORE_PATH")
+            if (!keystorePath.isNullOrBlank()) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("NETEASY_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("NETEASY_KEY_ALIAS")
+                keyPassword = System.getenv("NETEASY_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             optimization {
                 enable = false
             }
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig =
+                if (System.getenv("NETEASY_KEYSTORE_PATH").isNullOrBlank()) {
+                    signingConfigs.getByName("debug")
+                } else {
+                    signingConfigs.getByName("release")
+                }
         }
     }
     compileOptions {
