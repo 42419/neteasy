@@ -1,5 +1,6 @@
 package top.yunov.neteasy.data
 
+import java.util.concurrent.ConcurrentHashMap
 import org.json.JSONObject
 
 /**
@@ -7,6 +8,13 @@ import org.json.JSONObject
  * 所有方法在 IO 线程调用（UI 侧用 withContext(Dispatchers.IO)）。
  */
 class NcmRepository(private val api: ApiClient) {
+    /**
+     * 歌单详情 + 歌曲列表内存缓存：App 存活期间有效（这个 NcmRepository 本身就是
+     * App 级单例）。同一个歌单再次打开直接用缓存秒开，不用每次都重新等一轮网络请求；
+     * 配合 [playlistDetailAndSongs] 的 forceRefresh 参数支持下拉刷新强制重新拉取。
+     */
+    private val playlistCache = ConcurrentHashMap<Long, Pair<Playlist, List<Song>>>()
+
     suspend fun banners(): List<Banner> = JsonParser.parseBanners(api.get("/banner", mapOf("type" to "2")))
 
     suspend fun personalized(limit: Int = 20): List<Playlist> =
@@ -24,6 +32,25 @@ class NcmRepository(private val api: ApiClient) {
     suspend fun playlistSongs(id: Long, limit: Int = 100): List<Song> = JsonParser.parseSongs(
         api.get("/playlist/track/all", mapOf("id" to "$id", "limit" to "$limit"))
     )
+
+    /** 不发请求，只读内存缓存；没有缓存返回 null。打开歌单页时先用它秒出上次的内容。 */
+    fun cachedPlaylistOrNull(id: Long): Pair<Playlist, List<Song>>? = playlistCache[id]
+
+    /**
+     * 歌单详情 + 歌曲列表一起拿，带内存缓存。
+     * [forceRefresh]=false（默认）：有缓存直接返回缓存，没有才真正发请求；
+     * [forceRefresh]=true：无视缓存强制重新拉取并刷新缓存（下拉刷新 / 后台静默刷新用）。
+     */
+    suspend fun playlistDetailAndSongs(id: Long, forceRefresh: Boolean = false): Pair<Playlist, List<Song>> {
+        if (!forceRefresh) {
+            playlistCache[id]?.let { return it }
+        }
+        val detail = playlistDetail(id) ?: error("歌单不存在或已被删除")
+        val songs = playlistSongs(id, 100)
+        val result = detail to songs
+        playlistCache[id] = result
+        return result
+    }
 
     /** 当前登录用户创建/收藏的歌单（含系统「喜欢的音乐」歌单）。未登录调用会返回空列表。 */
     suspend fun userPlaylists(uid: Long): List<Playlist> = JsonParser.parseUserPlaylists(
