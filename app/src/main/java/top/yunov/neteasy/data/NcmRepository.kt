@@ -36,6 +36,14 @@ class NcmRepository(private val api: ApiClient) {
     /** 不发请求，只读内存缓存；没有缓存返回 null。打开歌单页时先用它秒出上次的内容。 */
     fun cachedPlaylistOrNull(id: Long): Pair<Playlist, List<Song>>? = playlistCache[id]
 
+    /** 当前缓存了多少个歌单（设置页「缓存管理」展示用） */
+    val playlistCacheCount: Int get() = playlistCache.size
+
+    /** 清空歌单数据内存缓存（设置页「清除」按钮用） */
+    fun clearPlaylistCache() {
+        playlistCache.clear()
+    }
+
     /**
      * 歌单详情 + 歌曲列表一起拿，带内存缓存。
      * [forceRefresh]=false（默认）：有缓存直接返回缓存，没有才真正发请求；

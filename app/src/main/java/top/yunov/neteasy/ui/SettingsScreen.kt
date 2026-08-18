@@ -19,8 +19,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
@@ -29,6 +31,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +45,7 @@ import top.yunov.neteasy.data.ThemeMode
  * 设置页（MD3 Expressive）：
  * - 深色模式：跟随系统 / 浅色 / 深色（三选一 SegmentedButton）
  * - 动态取色：Material You 壁纸色开关（仅 Android 12+ 显示）
+ * - 缓存管理：分项展示图片缓存 / 歌单数据缓存大小，各自可单独清除
  * 所有选择经 MainActivity 提升到主题层，切换即时生效并持久化。
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -52,6 +56,10 @@ fun SettingsScreen(
     dynamicColor: Boolean,
     dynamicColorSupported: Boolean,
     onDynamicColorChange: (Boolean) -> Unit,
+    imageCacheBytes: Long,
+    playlistCacheCount: Int,
+    onClearImageCache: () -> Unit,
+    onClearPlaylistCache: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -141,8 +149,69 @@ fun SettingsScreen(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // 缓存管理：分项展示大小，各自单独清除
+            Text(
+                "缓存管理",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(start = 4.dp, bottom = 10.dp)
+            )
+            Column(
+                modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(MaterialTheme.shapes.extraLarge)
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            ) {
+                SettingRow(
+                    icon = Icons.Filled.Delete,
+                    title = "图片缓存",
+                    subtitle = "封面、头像等图片（${formatBytes(imageCacheBytes)}）"
+                ) {
+                    TextButton(onClick = onClearImageCache, enabled = imageCacheBytes > 0) {
+                        Text("清除")
+                    }
+                }
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+                SettingRow(
+                    icon = Icons.Filled.Delete,
+                    title = "歌单数据缓存",
+                    subtitle = "已缓存 $playlistCacheCount 个歌单的详情和歌曲列表"
+                ) {
+                    TextButton(onClick = onClearPlaylistCache, enabled = playlistCacheCount > 0) {
+                        Text("清除")
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "歌单数据缓存只存在内存里，退出 App 自动清空；图片缓存存在本地磁盘，\n" +
+                    "清除后对应内容下次加载会重新联网获取",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
+}
+
+/** 字节数转人类可读的大小文本，如 "12.4 MB" */
+private fun formatBytes(bytes: Long): String {
+    if (bytes <= 0) return "0 B"
+    val units = arrayOf("B", "KB", "MB", "GB")
+    var value = bytes.toDouble()
+    var unitIndex = 0
+    while (value >= 1024 && unitIndex < units.lastIndex) {
+        value /= 1024
+        unitIndex++
+    }
+    return if (unitIndex == 0) "${value.toInt()} ${units[unitIndex]}" else "%.1f %s".format(value, units[unitIndex])
 }
 
 /** 深色模式三选项的唯一数据源：段按钮展示 + 副标题“当前：”共用 */
