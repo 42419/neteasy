@@ -45,7 +45,9 @@ import top.yunov.neteasy.data.ThemeMode
  * 设置页（MD3 Expressive）：
  * - 深色模式：跟随系统 / 浅色 / 深色（三选一 SegmentedButton）
  * - 动态取色：Material You 壁纸色开关（仅 Android 12+ 显示）
- * - 缓存管理：分项展示图片缓存 / 歌单数据缓存大小，各自可单独清除
+ * - 缓存管理：图片缓存 / 歌单数据缓存 / 临时文件 / 其他缓存分项展示大小，各自可单独清除；
+ *   另有「后端程序文件」纯展示（App 运行必需，不可清除）——把 App 实际占用的磁盘空间
+ *   完整摊开，不只挑几项展示
  * 所有选择经 MainActivity 提升到主题层，切换即时生效并持久化。
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -58,8 +60,13 @@ fun SettingsScreen(
     onDynamicColorChange: (Boolean) -> Unit,
     imageCacheBytes: Long,
     playlistCacheCount: Int,
+    tempFilesBytes: Long,
+    otherCacheBytes: Long,
+    backendFilesBytes: Long,
     onClearImageCache: () -> Unit,
     onClearPlaylistCache: () -> Unit,
+    onClearTempFiles: () -> Unit,
+    onClearOtherCache: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -152,10 +159,18 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 缓存管理：分项展示大小，各自单独清除
+            // 缓存管理：把 App 实际占用的磁盘空间完整摊开展示，不只挑几项——
+            // 总占用 = 下面几行加起来，方便对照系统「设置 > 应用信息 > 存储空间」里看到的总大小
+            val totalBytes = imageCacheBytes + tempFilesBytes + otherCacheBytes + backendFilesBytes
             Text(
                 "缓存管理",
                 style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(start = 4.dp)
+            )
+            Text(
+                "当前共占用 ${formatBytes(totalBytes)}（含下方「后端程序文件」这类运行必需、\n不可清除的部分）",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 4.dp, bottom = 10.dp)
             )
             Column(
@@ -187,11 +202,46 @@ fun SettingsScreen(
                         Text("清除")
                     }
                 }
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+                SettingRow(
+                    icon = Icons.Filled.Delete,
+                    title = "临时文件",
+                    subtitle = "后端接口请求过程中产生的临时数据（${formatBytes(tempFilesBytes)}）"
+                ) {
+                    TextButton(onClick = onClearTempFiles, enabled = tempFilesBytes > 0) {
+                        Text("清除")
+                    }
+                }
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+                SettingRow(
+                    icon = Icons.Filled.Delete,
+                    title = "其他缓存",
+                    subtitle = "上面几类没覆盖到的部分，兜底展示（${formatBytes(otherCacheBytes)}）"
+                ) {
+                    TextButton(onClick = onClearOtherCache, enabled = otherCacheBytes > 0) {
+                        Text("清除")
+                    }
+                }
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+                SettingRow(
+                    icon = Icons.Filled.Delete,
+                    title = "后端程序文件",
+                    subtitle = "内嵌服务运行必需的程序文件（${formatBytes(backendFilesBytes)}），不可清除"
+                ) {}
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                "歌单数据缓存只存在内存里，退出 App 自动清空；图片缓存存在本地磁盘，\n" +
-                    "清除后对应内容下次加载会重新联网获取",
+                "歌单数据缓存只存在内存里，退出 App 自动清空；其余几项存在本地磁盘，\n" +
+                    "清除后对应内容下次需要时会重新生成或重新联网获取",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
