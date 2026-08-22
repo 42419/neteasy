@@ -245,6 +245,42 @@ val Icons.Filled.TrendingFlat: ImageVector
         return trendingFlatIcon!!
     }
 
+// material-icons-core 未收录 Storage（存储空间）图标，自绘简化版磁盘图标
+private var storageIcon: ImageVector? = null
+
+val Icons.Filled.Storage: ImageVector
+    get() {
+        if (storageIcon != null) return storageIcon!!
+        storageIcon =
+            materialIcon(name = "Filled.Storage") {
+                materialPath {
+                    // 上层磁盘（圆角矩形 + 一个小圆点代表指示灯）
+                    moveTo(2f, 3f)
+                    horizontalLineTo(22f)
+                    verticalLineToRelative(6f)
+                    horizontalLineTo(2f)
+                    close()
+                    moveTo(19f, 7.5f)
+                    horizontalLineToRelative(2f)
+                    verticalLineToRelative(-2f)
+                    horizontalLineToRelative(-2f)
+                    close()
+                    // 下层磁盘
+                    moveTo(2f, 11f)
+                    horizontalLineTo(22f)
+                    verticalLineToRelative(6f)
+                    horizontalLineTo(2f)
+                    close()
+                    moveTo(19f, 15.5f)
+                    horizontalLineToRelative(2f)
+                    verticalLineToRelative(-2f)
+                    horizontalLineToRelative(-2f)
+                    close()
+                }
+            }
+        return storageIcon!!
+    }
+
 // material-icons-core 未收录 Palette 图标，使用 Material 官方 palette 路径自定义
 private var paletteIcon: ImageVector? = null
 

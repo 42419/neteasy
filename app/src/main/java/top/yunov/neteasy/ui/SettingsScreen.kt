@@ -1,6 +1,7 @@
 package top.yunov.neteasy.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,10 +20,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
@@ -31,7 +31,6 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,9 +44,8 @@ import top.yunov.neteasy.data.ThemeMode
  * 设置页（MD3 Expressive）：
  * - 深色模式：跟随系统 / 浅色 / 深色（三选一 SegmentedButton）
  * - 动态取色：Material You 壁纸色开关（仅 Android 12+ 显示）
- * - 缓存管理：图片缓存 / 歌单数据缓存 / 临时文件 / 其他缓存分项展示大小，各自可单独清除；
- *   另有「后端程序文件」纯展示（App 运行必需，不可清除）——把 App 实际占用的磁盘空间
- *   完整摊开，不只挑几项展示
+ * - 存储空间：点进去是独立页面（StorageScreen），参考网易云官方存储空间页样式，
+ *   这里只是一个跳转入口
  * 所有选择经 MainActivity 提升到主题层，切换即时生效并持久化。
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -58,15 +56,7 @@ fun SettingsScreen(
     dynamicColor: Boolean,
     dynamicColorSupported: Boolean,
     onDynamicColorChange: (Boolean) -> Unit,
-    imageCacheBytes: Long,
-    playlistCacheCount: Int,
-    tempFilesBytes: Long,
-    otherCacheBytes: Long,
-    backendFilesBytes: Long,
-    onClearImageCache: () -> Unit,
-    onClearPlaylistCache: () -> Unit,
-    onClearTempFiles: () -> Unit,
-    onClearOtherCache: () -> Unit,
+    onOpenStorage: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -159,20 +149,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 缓存管理：把 App 实际占用的磁盘空间完整摊开展示，不只挑几项——
-            // 总占用 = 下面几行加起来，方便对照系统「设置 > 应用信息 > 存储空间」里看到的总大小
-            val totalBytes = imageCacheBytes + tempFilesBytes + otherCacheBytes + backendFilesBytes
-            Text(
-                "缓存管理",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(start = 4.dp)
-            )
-            Text(
-                "当前共占用 ${formatBytes(totalBytes)}（含下方「后端程序文件」这类运行必需、\n不可清除的部分）",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 4.dp, bottom = 10.dp)
-            )
+            // 存储空间：跳转到独立页面，参考网易云官方存储空间页样式
             Column(
                 modifier =
                 Modifier
@@ -181,87 +158,20 @@ fun SettingsScreen(
                     .background(MaterialTheme.colorScheme.surfaceContainerLow)
             ) {
                 SettingRow(
-                    icon = Icons.Filled.Delete,
-                    title = "图片缓存",
-                    subtitle = "封面、头像等图片（${formatBytes(imageCacheBytes)}）"
+                    icon = Icons.Filled.Storage,
+                    title = "存储空间",
+                    subtitle = "查看并清理占用的存储空间",
+                    modifier = Modifier.clickable(onClick = onOpenStorage)
                 ) {
-                    TextButton(onClick = onClearImageCache, enabled = imageCacheBytes > 0) {
-                        Text("清除")
-                    }
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-                HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant
-                )
-                SettingRow(
-                    icon = Icons.Filled.Delete,
-                    title = "歌单数据缓存",
-                    subtitle = "已缓存 $playlistCacheCount 个歌单的详情和歌曲列表"
-                ) {
-                    TextButton(onClick = onClearPlaylistCache, enabled = playlistCacheCount > 0) {
-                        Text("清除")
-                    }
-                }
-                HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant
-                )
-                SettingRow(
-                    icon = Icons.Filled.Delete,
-                    title = "临时文件",
-                    subtitle = "后端接口请求过程中产生的临时数据（${formatBytes(tempFilesBytes)}）"
-                ) {
-                    TextButton(onClick = onClearTempFiles, enabled = tempFilesBytes > 0) {
-                        Text("清除")
-                    }
-                }
-                HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant
-                )
-                SettingRow(
-                    icon = Icons.Filled.Delete,
-                    title = "其他缓存",
-                    subtitle = "上面几类没覆盖到的部分，兜底展示（${formatBytes(otherCacheBytes)}）"
-                ) {
-                    TextButton(onClick = onClearOtherCache, enabled = otherCacheBytes > 0) {
-                        Text("清除")
-                    }
-                }
-                HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant
-                )
-                SettingRow(
-                    icon = Icons.Filled.Delete,
-                    title = "后端程序文件",
-                    subtitle = "内嵌服务运行必需的程序文件（${formatBytes(backendFilesBytes)}），不可清除"
-                ) {}
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "歌单数据缓存只存在内存里，退出 App 自动清空；其余几项存在本地磁盘，\n" +
-                    "清除后对应内容下次需要时会重新生成或重新联网获取",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
         }
     }
-}
-
-/** 字节数转人类可读的大小文本，如 "12.4 MB" */
-private fun formatBytes(bytes: Long): String {
-    if (bytes <= 0) return "0 B"
-    val units = arrayOf("B", "KB", "MB", "GB")
-    var value = bytes.toDouble()
-    var unitIndex = 0
-    while (value >= 1024 && unitIndex < units.lastIndex) {
-        value /= 1024
-        unitIndex++
-    }
-    return if (unitIndex == 0) "${value.toInt()} ${units[unitIndex]}" else "%.1f %s".format(value, units[unitIndex])
 }
 
 /** 深色模式三选项的唯一数据源：段按钮展示 + 副标题“当前：”共用 */
@@ -281,11 +191,12 @@ private fun SettingRow(
     icon: ImageVector,
     title: String,
     subtitle: String,
+    modifier: Modifier = Modifier,
     trailing: @Composable () -> Unit = {}
 ) {
     Row(
         modifier =
-        Modifier
+        modifier
             .fillMaxWidth()
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
