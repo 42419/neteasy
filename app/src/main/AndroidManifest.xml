@@ -11,6 +11,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- Android 13+ 前台服务通知（缺失时服务照常运行，仅通知不可见） -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 检查更新：自己触发安装包安装需要这个权限，Android 8+ 才能弹出「允许安装未知来源应用」 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:name=".NeteasyApp"
@@ -85,6 +87,15 @@
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>
         </service>
+
+        <!-- 检查更新：本 App 被新版本安装包替换完成后收到这个广播，借机自动清理下载的安装包 -->
+        <receiver
+            android:name=".UpdateReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

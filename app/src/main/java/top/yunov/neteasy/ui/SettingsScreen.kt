@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -21,9 +22,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -31,6 +37,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,6 +46,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import top.yunov.neteasy.data.ThemeMode
+import top.yunov.neteasy.data.UpdateUiState
 
 /**
  * 设置页（MD3 Expressive）：
@@ -46,6 +54,7 @@ import top.yunov.neteasy.data.ThemeMode
  * - 动态取色：Material You 壁纸色开关（仅 Android 12+ 显示）
  * - 存储空间：点进去是独立页面（StorageScreen），参考网易云官方存储空间页样式，
  *   这里只是一个跳转入口
+ * - 检查更新：对比 GitHub Releases 最新版本，有更新弹窗展示更新内容 + 下载安装
  * 所有选择经 MainActivity 提升到主题层，切换即时生效并持久化。
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -57,6 +66,12 @@ fun SettingsScreen(
     dynamicColorSupported: Boolean,
     onDynamicColorChange: (Boolean) -> Unit,
     onOpenStorage: () -> Unit,
+    currentVersion: String,
+    updateState: UpdateUiState,
+    onCheckUpdate: () -> Unit,
+    onStartDownload: () -> Unit,
+    onInstallUpdate: () -> Unit,
+    onDismissUpdateDialog: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -170,7 +185,117 @@ fun SettingsScreen(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // 检查更新：对比 GitHub Releases 最新版本
+            Column(
+                modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(MaterialTheme.shapes.extraLarge)
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            ) {
+                val checking = updateState == UpdateUiState.Checking
+                SettingRow(
+                    icon = Icons.Filled.Refresh,
+                    title = "检查更新",
+                    subtitle = "当前版本 $currentVersion",
+                    modifier = Modifier.clickable(enabled = !checking, onClick = onCheckUpdate)
+                ) {
+                    if (checking) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                    } else {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
         }
+    }
+
+    UpdateDialog(
+        state = updateState,
+        onStartDownload = onStartDownload,
+        onInstall = onInstallUpdate,
+        onDismiss = onDismissUpdateDialog
+    )
+}
+
+/** 检查更新弹窗：按当前状态展示「有更新详情」「测速中」「下载进度」「下载完成待安装」「出错」 */
+@Composable
+private fun UpdateDialog(
+    state: UpdateUiState,
+    onStartDownload: () -> Unit,
+    onInstall: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    when (state) {
+        is UpdateUiState.Available ->
+            AlertDialog(
+                onDismissRequest = onDismiss,
+                title = { Text("发现新版本 ${state.release.versionName}") },
+                text = {
+                    Text(
+                        state.release.releaseNotes.ifBlank { "（这次更新没有附带说明）" },
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier =
+                        Modifier
+                            .heightIn(max = 260.dp)
+                            .verticalScroll(rememberScrollState())
+                    )
+                },
+                confirmButton = { Button(onClick = onStartDownload) { Text("下载更新") } },
+                dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+            )
+        UpdateUiState.PickingMirror ->
+            AlertDialog(
+                onDismissRequest = {},
+                title = { Text("准备下载") },
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("正在测速，自动选择最快的下载节点…")
+                    }
+                },
+                confirmButton = {}
+            )
+        is UpdateUiState.Downloading ->
+            AlertDialog(
+                onDismissRequest = {},
+                title = { Text("正在下载（${state.mirrorLabel}）") },
+                text = {
+                    Column {
+                        LinearProgressIndicator(
+                            progress = { state.progress },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("${(state.progress * 100).toInt()}%")
+                    }
+                },
+                confirmButton = {}
+            )
+        UpdateUiState.ReadyToInstall ->
+            AlertDialog(
+                onDismissRequest = onDismiss,
+                title = { Text("下载完成") },
+                text = { Text("安装包已保存到「下载」目录，点击安装继续更新，安装完成后会自动清理安装包。") },
+                confirmButton = { Button(onClick = onInstall) { Text("安装") } },
+                dismissButton = { TextButton(onClick = onDismiss) { Text("稍后") } }
+            )
+        is UpdateUiState.Error ->
+            AlertDialog(
+                onDismissRequest = onDismiss,
+                title = { Text("更新失败") },
+                text = { Text(state.message) },
+                confirmButton = { TextButton(onClick = onDismiss) { Text("知道了") } }
+            )
+        UpdateUiState.Idle, UpdateUiState.Checking, UpdateUiState.UpToDate -> Unit
     }
 }
 
