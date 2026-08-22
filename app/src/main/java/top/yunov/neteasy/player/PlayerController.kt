@@ -92,6 +92,13 @@ class PlayerController(
     private var loadGeneration = 0 // 防止旧的异步 URL 解析在新一首播放请求之后回来，覆盖新状态
     private var qualityLevel: String = initialQuality.level
 
+    // seek 期间的目标位置：非 null 表示有一次 seek 还没真正落地。MediaPlayer.seekTo()
+    // 是异步的（网络流尤其明显，越往后跳等内部缓冲越久），进度轮询协程如果这时候正好
+    // 醒过来读 currentPosition，会读到还没 seek 完成的旧值，把刚设好的位置覆盖回去——
+    // 这就是拖动进度条后偶发「回弹到原位置/中间某个位置」的真正原因。
+    private var seekingToMs: Long? = null
+    private var seekTimeoutJob: Job? = null
+
     // ---------- 系统音频集成 ----------
 
     private val audioManager = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -366,9 +373,19 @@ class PlayerController(
     }
 
     fun seekTo(ms: Int) {
-        mediaPlayer?.seekTo(ms)
+        val p = mediaPlayer
+        seekingToMs = ms.toLong()
+        p?.seekTo(ms)
         // 立即同步 UI 进度：暂停时 ticker 不运行，且避免松手后滑块弹回旧位置
         _state.value = _state.value.copy(positionMs = ms.toLong())
+        // 保险兜底：万一某些机型/编码格式不触发 OnSeekCompleteListener，
+        // 别让轮询因为 seekingToMs 一直非 null 而永久停摆
+        seekTimeoutJob?.cancel()
+        seekTimeoutJob =
+            scope.launch {
+                delay(3000)
+                if (seekingToMs == ms.toLong()) seekingToMs = null
+            }
     }
 
     /**
@@ -482,6 +499,9 @@ class PlayerController(
         progressJob?.cancel()
         progressJob = null
         tickerGeneration++
+        seekingToMs = null
+        seekTimeoutJob?.cancel()
+        seekTimeoutJob = null
         mediaPlayer?.release()
         mediaPlayer = null
     }
@@ -538,6 +558,11 @@ class PlayerController(
                 _state.value = _state.value.copy(isPlaying = false)
                 true
             }
+            p.setOnSeekCompleteListener {
+                // seek 真正落地了，轮询协程可以放心继续读 currentPosition 了
+                seekingToMs = null
+                seekTimeoutJob?.cancel()
+            }
             mediaPlayer = p
             p.prepareAsync()
         } catch (e: IOException) {
@@ -556,11 +581,15 @@ class PlayerController(
                 while (isActive && tickerGeneration == gen) {
                     val p = mediaPlayer ?: break
                     if (!p.isPlaying) break
-                    _state.value =
-                        _state.value.copy(
-                            positionMs = p.currentPosition.toLong(),
-                            durationMs = p.duration.toLong()
-                        )
+                    // seek 还没真正落地时跳过这次更新，不然会用 MediaPlayer 内部
+                    // 还没跳转完成时的旧 currentPosition 把刚拖动到的位置覆盖回去
+                    if (seekingToMs == null) {
+                        _state.value =
+                            _state.value.copy(
+                                positionMs = p.currentPosition.toLong(),
+                                durationMs = p.duration.toLong()
+                            )
+                    }
                     delay(500)
                 }
             }
