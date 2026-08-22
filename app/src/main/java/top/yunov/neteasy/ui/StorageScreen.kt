@@ -22,7 +22,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -111,14 +110,14 @@ fun StorageScreen(
                     Modifier
                         .weight(othersFraction.coerceAtLeast(0.001f))
                         .fillMaxHeight()
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .background(MaterialTheme.colorScheme.outlineVariant)
                 )
                 Box(
                     modifier =
                     Modifier
                         .weight(freeFraction.coerceAtLeast(0.001f))
                         .fillMaxHeight()
-                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 )
             }
 
@@ -132,14 +131,14 @@ fun StorageScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 4.dp, end = 12.dp)
                 )
-                LegendDot(color = MaterialTheme.colorScheme.surfaceVariant)
+                LegendDot(color = MaterialTheme.colorScheme.outlineVariant)
                 Text(
                     "手机已用",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 4.dp, end = 12.dp)
                 )
-                LegendDot(color = MaterialTheme.colorScheme.surfaceContainerHighest)
+                LegendDot(color = MaterialTheme.colorScheme.surfaceContainerLow)
                 Text(
                     "手机可用",
                     style = MaterialTheme.typography.labelMedium,
@@ -215,10 +214,11 @@ private fun StorageCard(
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
             if (buttonText != null) {
+                // 不写死颜色，用 Button 默认样式（跟主题 primary 色走）——
+                // 开了动态取色会跟壁纸色变，关了则是品牌色，不再固定红色
                 Button(
                     onClick = onClick,
-                    enabled = buttonEnabled,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    enabled = buttonEnabled
                 ) {
                     Text(buttonText)
                 }
