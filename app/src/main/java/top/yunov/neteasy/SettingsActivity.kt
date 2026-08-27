@@ -47,6 +47,7 @@ class SettingsActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val settings = SettingsStore(this)
+        val app = application as NeteasyApp
         val updateChecker = UpdateChecker()
         val currentVersion =
             try {
@@ -58,6 +59,7 @@ class SettingsActivity : ComponentActivity() {
         setContent {
             var themeMode by remember { mutableStateOf(settings.themeMode) }
             var dynamicColor by remember { mutableStateOf(settings.dynamicColor) }
+            var defaultQuality by remember { mutableStateOf(settings.preferredAudioQuality) }
             var updateState by remember { mutableStateOf<UpdateUiState>(UpdateUiState.Idle) }
             // 下载完成后记下本地文件路径 + DownloadManager 的下载 id，点「安装」时要用
             var pendingApkPath by remember { mutableStateOf<String?>(null) }
@@ -85,6 +87,13 @@ class SettingsActivity : ComponentActivity() {
                     },
                     onOpenStorage = { startActivity(Intent(this, StorageActivity::class.java)) },
                     currentVersion = currentVersion,
+                    defaultQuality = defaultQuality,
+                    onDefaultQualityChange = {
+                        settings.preferredAudioQuality = it
+                        defaultQuality = it
+                        // 同步给播放器：作为之后“新开始播放歌曲”的首选音质
+                        app.playerController.setDefaultQuality(it)
+                    },
                     updateState = updateState,
                     onCheckUpdate = {
                         updateState = UpdateUiState.Checking

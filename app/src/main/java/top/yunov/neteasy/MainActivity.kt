@@ -214,6 +214,12 @@ private fun NcmApp(settings: SettingsStore) {
                                     .putExtra(PlaylistActivity.EXTRA_PLAYLIST_ID, id)
                             )
                         },
+                        onOpenUserDetail = { uid ->
+                            context.startActivity(
+                                Intent(context, UserDetailActivity::class.java)
+                                    .putExtra(UserDetailActivity.EXTRA_UID, uid)
+                            )
+                        },
                         modifier = Modifier.fillMaxSize()
                     )
                 }

@@ -126,7 +126,8 @@ fun PlaylistScreen(playlistId: Long, repository: NcmRepository, player: PlayerCo
                 }
                 Text(
                     "歌单",
-                    style = MaterialTheme.typography.titleMedium,
+                    // 与其他二级页面（设置/存储/搜索）标题统一：粗体大字（headlineLarge）
+                    style = MaterialTheme.typography.headlineLarge,
                     modifier = Modifier.padding(start = 12.dp)
                 )
             }

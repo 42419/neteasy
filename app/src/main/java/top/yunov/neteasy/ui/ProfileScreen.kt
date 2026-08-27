@@ -65,6 +65,7 @@ fun ProfileScreen(
     onLoginClick: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenPlaylist: (Long) -> Unit,
+    onOpenUserDetail: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var nickname by remember { mutableStateOf<String?>(null) }
@@ -72,6 +73,9 @@ fun ProfileScreen(
     var checking by remember { mutableStateOf(true) }
     var logoutRefreshKey by remember { mutableIntStateOf(0) }
     var playlists by remember { mutableStateOf<List<Playlist>>(emptyList()) }
+    // 登录态 profile 里的用户 id 与 VIP 类型（详情页跳转与卡片徽标用）
+    var uid by remember { mutableStateOf(0L) }
+    var vipType by remember { mutableStateOf(0) }
 
     // 外部登录成功 refreshKey 变化 或 本页登出 logoutRefreshKey 变化 都重新加载
     LaunchedEffect(refreshKey, logoutRefreshKey) {
@@ -83,11 +87,13 @@ fun ProfileScreen(
         val profile = info?.optJSONObject("profile")
         nickname = profile?.optString("nickname")?.takeIf { it.isNotBlank() }
         avatarUrl = profile?.optString("avatarUrl")?.takeIf { it.isNotBlank() }
-        val uid = profile?.optLong("userId") ?: 0L
+        uid = profile?.optLong("userId") ?: 0L
+        vipType = profile?.optInt("vipType") ?: 0
+        val currentUid = uid
         playlists =
-            if (uid != 0L) {
+            if (currentUid != 0L) {
                 try {
-                    withContext(Dispatchers.IO) { repository.userPlaylists(uid) }
+                    withContext(Dispatchers.IO) { repository.userPlaylists(currentUid) }
                 } catch (e: Exception) {
                     emptyList()
                 }
@@ -111,7 +117,7 @@ fun ProfileScreen(
             }
             item { Spacer(modifier = Modifier.height(24.dp)) }
 
-            // 用户卡片
+            // 用户卡片：登录后可点击进入个人信息详情页
             item {
             Column(
                 modifier =
@@ -119,6 +125,7 @@ fun ProfileScreen(
                     .fillMaxWidth()
                     .clip(MaterialTheme.shapes.extraLarge)
                     .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .then(if (nickname != null) Modifier.clickable { onOpenUserDetail(uid) } else Modifier)
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -138,8 +145,22 @@ fun ProfileScreen(
                         Spacer(modifier = Modifier.height(14.dp))
                         Text(nickname!!, style = MaterialTheme.typography.titleLarge)
                         Spacer(modifier = Modifier.height(6.dp))
+                        if (vipType > 0) {
+                            // 顶部 VIP 徽标（点进详情页可见完整等级）
+                            Text(
+                                text = if (vipType == 11) "黑胶VIP" else "VIP",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                modifier =
+                                Modifier
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary)
+                                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                        }
                         Text(
-                            "已登录 · 可完整播放 VIP 歌曲\n（确保您有VIP权限）",
+                            "已登录 · 点击查看个人信息",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center

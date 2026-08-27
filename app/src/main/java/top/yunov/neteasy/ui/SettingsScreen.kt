@@ -22,6 +22,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -39,12 +41,17 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import top.yunov.neteasy.data.AudioQuality
 import top.yunov.neteasy.data.ThemeMode
 import top.yunov.neteasy.data.UpdateUiState
 
@@ -67,6 +74,8 @@ fun SettingsScreen(
     onDynamicColorChange: (Boolean) -> Unit,
     onOpenStorage: () -> Unit,
     currentVersion: String,
+    defaultQuality: AudioQuality,
+    onDefaultQualityChange: (AudioQuality) -> Unit,
     updateState: UpdateUiState,
     onCheckUpdate: () -> Unit,
     onStartDownload: () -> Unit,
@@ -75,6 +84,9 @@ fun SettingsScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // 默认播放音质选择弹窗开关
+    var qualityDialog by remember { mutableStateOf(false) }
+
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
             modifier =
@@ -188,6 +200,31 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
+            // 默认播放音质：点入选一首作为“新开始播放歌曲时优先尝试”的档位；
+            // 某首歌没有该档位时会在播放时自动降级为邻近档位（见 PlayerController.effectiveQuality）
+            Column(
+                modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(MaterialTheme.shapes.extraLarge)
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            ) {
+                SettingRow(
+                    icon = Icons.Filled.GraphicEq,
+                    title = "默认播放音质",
+                    subtitle = "当前：${defaultQuality.label}",
+                    modifier = Modifier.clickable { qualityDialog = true }
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
             // 检查更新：对比 GitHub Releases 最新版本
             Column(
                 modifier =
@@ -223,6 +260,59 @@ fun SettingsScreen(
         onInstall = onInstallUpdate,
         onDismiss = onDismissUpdateDialog
     )
+
+    // 默认播放音质选择弹窗：列出全部 4 档
+    if (qualityDialog) {
+        AlertDialog(
+            onDismissRequest = { qualityDialog = false },
+            title = { Text("默认播放音质") },
+            text = {
+                Column {
+                    AudioQuality.entries.forEach { quality ->
+                        Row(
+                            modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(MaterialTheme.shapes.medium)
+                                .clickable {
+                                    onDefaultQualityChange(quality)
+                                    qualityDialog = false
+                                }
+                                .padding(horizontal = 4.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                quality.label,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color =
+                                if (quality == defaultQuality) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (quality == defaultQuality) {
+                                Icon(
+                                    Icons.Filled.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        "某首歌没有该音质时，会自动降级为邻近的可播放音质。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            },
+            confirmButton = { TextButton(onClick = { qualityDialog = false }) { Text("关闭") } }
+        )
+    }
 }
 
 /** 检查更新弹窗：按当前状态展示「有更新详情」「测速中」「下载进度」「下载完成待安装」「出错」 */
@@ -295,7 +385,15 @@ private fun UpdateDialog(
                 text = { Text(state.message) },
                 confirmButton = { TextButton(onClick = onDismiss) { Text("知道了") } }
             )
-        UpdateUiState.Idle, UpdateUiState.Checking, UpdateUiState.UpToDate -> Unit
+        UpdateUiState.Idle, UpdateUiState.Checking -> Unit
+        // 没新版本也要让用户知道“我查过了，是最新的”，否则点完按钮什么都没发生，像卡死
+        UpdateUiState.UpToDate ->
+            AlertDialog(
+                onDismissRequest = onDismiss,
+                title = { Text("检查更新") },
+                text = { Text("当前已是最新版本。") },
+                confirmButton = { TextButton(onClick = onDismiss) { Text("知道了") } }
+            )
     }
 }
 

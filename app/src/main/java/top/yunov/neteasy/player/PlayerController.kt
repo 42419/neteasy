@@ -94,6 +94,38 @@ class PlayerController(
     private var loadGeneration = 0 // 防止旧的异步 URL 解析在新一首播放请求之后回来，覆盖新状态
     private var qualityLevel: String = initialQuality.level
 
+    /** 当前偏好音质（用户设置或上次手动选择），作为每首歌开始播放时的“首选”档位 */
+    private val preferredQuality: AudioQuality
+        get() = AudioQuality.entries.firstOrNull { it.level == qualityLevel } ?: AudioQuality.EXHIGH
+
+    /**
+     * 根据一首歌【实际存在】的音质档位，把偏好的音质降级/适配到可播放的档位：
+     * - 这首歌有偏好档位 → 直接用偏好档位；
+     * - 没有偏好档位 → 取“不高于偏好档位”里最高的那一档；若这首歌只存在比偏好更高的档位，
+     *   则取最低的那一档（尽可能贴近用户选择）。
+     * available 为空（尚未从 /song/detail 获知）时无从判断，返回偏好档位，交给服务端降级。
+     */
+    private fun effectiveQuality(preferred: AudioQuality, available: Set<AudioQuality>): AudioQuality {
+        if (available.isEmpty()) return preferred
+        if (preferred in available) return preferred
+        val order = AudioQuality.entries
+        val preferredIndex = order.indexOf(preferred)
+        val lowerOrEqual = available.filter { order.indexOf(it) <= preferredIndex }
+        return if (lowerOrEqual.isNotEmpty()) {
+            lowerOrEqual.maxByOrNull { order.indexOf(it) }!!
+        } else {
+            available.minByOrNull { order.indexOf(it) }!!
+        }
+    }
+
+    /** 修改默认播放音质偏好（设置页调用）。仅影响之后开始播放的歌曲，不打断当前播放或立即重解析。 */
+    fun setDefaultQuality(quality: AudioQuality) {
+        qualityLevel = quality.level
+        if (_state.value.song == null) {
+            _state.value = _state.value.copy(quality = quality)
+        }
+    }
+
     // seek 期间的目标位置：非 null 表示有一次 seek 还没真正落地。MediaPlayer.seekTo()
     // 是异步的（网络流尤其明显，越往后跳等内部缓冲越久），进度轮询协程如果这时候正好
     // 醒过来读 currentPosition，会读到还没 seek 完成的旧值，把刚设好的位置覆盖回去——
@@ -348,7 +380,8 @@ class PlayerController(
     fun play(url: String?, song: PlayerSong) {
         queue = emptyList()
         queueIndex = -1
-        playResolved(url, song, queueIndex = -1, queueSize = 0)
+        val effective = effectiveQuality(preferredQuality, song.availableQualities)
+        playResolved(url, song, queueIndex = -1, queueSize = 0, playQuality = effective)
     }
 
     fun toggle() {
@@ -393,7 +426,8 @@ class PlayerController(
     /**
      * 切换音质：重新解析当前歌曲在新档位下的 URL，并尽量从原播放位置续播
      * （暂停状态切换音质后仍保持暂停，不会突然自动播放）。
-     * 若这首歌没有该档位，服务端会自动降级返回可播放的最高音质。
+     * 若这首歌没有该档位（available 已知时），自动降级为临近的可播放档位，
+     * 状态里显示的也是实际播放用的档位。
      */
     fun setQuality(quality: AudioQuality) {
         if (qualityLevel == quality.level) return
@@ -403,15 +437,16 @@ class PlayerController(
             _state.value = _state.value.copy(quality = quality)
             return
         }
+        val effective = effectiveQuality(quality, song.availableQualities)
         val resumeAtMs = _state.value.positionMs
         val wasPlaying = _state.value.isPlaying
         val myQueueIndex = queueIndex
         val gen = ++loadGeneration
-        _state.value = _state.value.copy(quality = quality)
+        _state.value = _state.value.copy(quality = effective)
         scope.launch {
             val url =
                 try {
-                    withContext(Dispatchers.IO) { repository.songUrl(song.id, qualityLevel) }
+                    withContext(Dispatchers.IO) { repository.songUrl(song.id, effective.level) }
                 } catch (e: Exception) {
                     Log.e("Player", "songUrl (quality switch) failed for ${song.id}", e)
                     null
@@ -423,7 +458,8 @@ class PlayerController(
                 queueIndex = myQueueIndex,
                 queueSize = queue.size,
                 resumeAtMs = resumeAtMs,
-                autoPlay = wasPlaying
+                autoPlay = wasPlaying,
+                playQuality = effective
             )
         }
     }
@@ -442,10 +478,13 @@ class PlayerController(
         val song = queue.getOrNull(queueIndex) ?: return
         val myIndex = queueIndex
         val gen = ++loadGeneration
+        // 每首开始播放时按“这首歌实际有的音质”适配偏好档位，缺档自动降级（见 effectiveQuality）
+        val effective = effectiveQuality(preferredQuality, song.availableQualities)
+        val level = effective.level
         scope.launch {
             val url =
                 try {
-                    withContext(Dispatchers.IO) { repository.songUrl(song.id, qualityLevel) }
+                    withContext(Dispatchers.IO) { repository.songUrl(song.id, level) }
                 } catch (e: Exception) {
                     Log.e("Player", "songUrl failed for ${song.id}", e)
                     null
@@ -453,7 +492,7 @@ class PlayerController(
             // 解析期间用户可能又切了别的歌（连续点了好几首/上一首下一首连点），
             // 此时这个已经过期的结果不能再覆盖当前状态
             if (gen != loadGeneration) return@launch
-            playResolved(url, song, queueIndex = myIndex, queueSize = queue.size)
+            playResolved(url, song, queueIndex = myIndex, queueSize = queue.size, playQuality = effective)
         }
     }
 
@@ -463,7 +502,8 @@ class PlayerController(
         queueIndex: Int,
         queueSize: Int,
         resumeAtMs: Long = 0,
-        autoPlay: Boolean = true
+        autoPlay: Boolean = true,
+        playQuality: AudioQuality = _state.value.quality
     ) {
         // 先释放旧 player（只释放实例，不清空状态）
         releasePlayerOnly()
@@ -479,7 +519,8 @@ class PlayerController(
                     queueIndex = queueIndex,
                     queueSize = queueSize,
                     queue = queue,
-                    bufferedPositionMs = 0
+                    bufferedPositionMs = 0,
+                    quality = playQuality
                 )
             return
         }
@@ -495,7 +536,8 @@ class PlayerController(
                 queueIndex = queueIndex,
                 queueSize = queueSize,
                 queue = queue,
-                bufferedPositionMs = 0
+                bufferedPositionMs = 0,
+                quality = playQuality
             )
         startPlayer(url, resumeAtMs, autoPlay)
     }

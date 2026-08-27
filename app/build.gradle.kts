@@ -256,6 +256,8 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     // material-icons-core（Home/Search/Pause/PlayArrow/ArrowBack 等基础图标）
     implementation("androidx.compose.material:material-icons-core")
+    // material-icons-extended：MusicNote/GraphicEq/Stars 等更丰富的图标（个人资料、封面占位等）
+    implementation("androidx.compose.material:material-icons-extended")
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)

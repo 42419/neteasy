@@ -50,6 +50,49 @@ data class Song(
 /** /song/detail 补充信息：封面 + 该歌曲实际存在的音质档位 */
 data class SongDetailExtra(val picUrl: String, val qualities: Set<AudioQuality>)
 
+/**
+ * 登录用户详情（/user/detail）。等级（level，账户 LV）与听歌数（listenSongs）
+ * 来自 /user/detail 顶层，其余资料在 profile 对象里。
+ */
+data class UserDetail(
+    val userId: Long,
+    val nickname: String,
+    val avatarUrl: String,
+    /** 账户等级（LV），/user/detail 顶层字段；未获取到为 0 */
+    val level: Int,
+    /** 累计听歌数 */
+    val listenSongs: Int,
+    /** 网易云 vipType：0 普通，11 黑胶VIP，其余非 0 视作 VIP */
+    val vipType: Int,
+    /** 性别：0 保密 / 1 男 / 2 女 */
+    val gender: Int,
+    val signature: String,
+    /** 账号创建时间（epoch 毫秒） */
+    val createTime: Long
+) {
+    val isVip: Boolean get() = vipType > 0
+
+    /** VIP 徽标文案；非 VIP 返回空串 */
+    val vipLabel: String
+        get() =
+            when {
+                vipType == 11 -> "黑胶VIP"
+                vipType > 0 -> "VIP"
+                else -> ""
+            }
+
+    /** 账户等级徽标文案；未获取到（level=0）返回空串 */
+    val levelLabel: String get() = if (level > 0) "LV$level" else ""
+
+    val genderLabel: String
+        get() =
+            when (gender) {
+                1 -> "男"
+                2 -> "女"
+                else -> "保密"
+            }
+}
+
 // ---------- JSON 解析 ----------
 
 object JsonParser {
@@ -211,5 +254,41 @@ object JsonParser {
         if (arr.length() == 0) return null
         val url = arr.optJSONObject(0)?.optString("url")
         return url?.takeIf { it.isNotBlank() }
+    }
+
+    /** /search/suggest 返回的关键词建议（result.allMatch[].keyword） */
+    fun parseSearchSuggest(root: JSONObject): List<String> {
+        val result = root.optJSONObject("result") ?: return emptyList()
+        val arr = result.optJSONArray("allMatch") ?: return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            arr.optJSONObject(i)?.optString("keyword")?.takeIf { it.isNotBlank() }
+        }
+    }
+
+    /** /search/hot 返回的热门搜索词（result.hots[].first） */
+    fun parseSearchHot(root: JSONObject): List<String> {
+        val result = root.optJSONObject("result") ?: return emptyList()
+        val arr = result.optJSONArray("hots") ?: return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            arr.optJSONObject(i)?.optString("first")?.takeIf { it.isNotBlank() }
+        }
+    }
+
+    /** /user/detail 返回用户详情：level/listenSongs 在顶层，资料在 profile */
+    fun parseUserDetail(root: JSONObject): UserDetail? {
+        val profile = root.optJSONObject("profile") ?: return null
+        val userId = profile.optLong("userId")
+        if (userId == 0L) return null
+        return UserDetail(
+            userId = userId,
+            nickname = profile.optString("nickname"),
+            avatarUrl = profile.optString("avatarUrl"),
+            level = root.optInt("level", 0),
+            listenSongs = root.optInt("listenSongs", 0),
+            vipType = profile.optInt("vipType", 0),
+            gender = profile.optInt("gender", 0),
+            signature = profile.optString("signature"),
+            createTime = profile.optLong("createTime", 0L)
+        )
     }
 }

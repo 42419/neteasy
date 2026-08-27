@@ -136,7 +136,8 @@ fun LoginScreen(repository: NcmRepository, onBack: () -> Unit, onLoggedIn: () ->
                 }
                 Text(
                     "扫码登录",
-                    style = MaterialTheme.typography.titleMedium,
+                    // 与其他二级页面（设置/存储/搜索）标题统一：粗体大字（headlineLarge）
+                    style = MaterialTheme.typography.headlineLarge,
                     modifier = Modifier.padding(start = 12.dp)
                 )
             }

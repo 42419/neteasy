@@ -41,7 +41,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import top.yunov.neteasy.data.AudioQuality
 import top.yunov.neteasy.data.thumbnail
 import top.yunov.neteasy.player.PlayerController
@@ -111,9 +110,9 @@ fun NowPlayingScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // 大封面
-            AsyncImage(
-                model = song.picUrl.thumbnail(900).ifEmpty { null },
+            // 大封面：用统一样式的占位（底色 + 音符），加载出图后 crossfade 淡入
+            CoverImage(
+                url = song.picUrl.thumbnail(900),
                 contentDescription = null,
                 modifier =
                 Modifier

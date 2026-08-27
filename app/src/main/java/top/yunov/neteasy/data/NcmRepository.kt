@@ -94,6 +94,27 @@ class NcmRepository(private val api: ApiClient) {
     }
 
     /**
+     * 搜索关键词建议（/search/suggest，type=mobile 走 keyword），用于输入时弹出的引导。
+     * 失败返回空列表，不打断输入。
+     */
+    suspend fun searchSuggest(keywords: String): List<String> =
+        try {
+            JsonParser.parseSearchSuggest(
+                api.get("/search/suggest", mapOf("keywords" to keywords, "type" to "mobile"))
+            )
+        } catch (e: Exception) {
+            emptyList()
+        }
+
+    /** 热门搜索词（/search/hot），用于搜索页空态引导。失败返回空列表。 */
+    suspend fun searchHot(): List<String> =
+        try {
+            JsonParser.parseSearchHot(api.get("/search/hot"))
+        } catch (e: Exception) {
+            emptyList()
+        }
+
+    /**
      * 获取歌曲可播放 URL。
      * 免费歌曲返回真实地址；无版权/VIP 歌曲 url 为空字符串或缺失。
      * [level] 对应 song/url/v1 的音质档位（standard/exhigh/lossless/hires）；
@@ -162,4 +183,12 @@ class NcmRepository(private val api: ApiClient) {
             null
         }
     }
+
+    /**
+     * 用户详情（账户等级 / 听歌数 / VIP / 资料），来自 /user/detail?uid=。
+     * 用于「我的」页个人信息与用户详情页。
+     */
+    suspend fun userDetail(uid: Long): UserDetail? = JsonParser.parseUserDetail(
+        api.get("/user/detail", mapOf("uid" to "$uid"))
+    )
 }

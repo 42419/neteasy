@@ -71,6 +71,12 @@
             android:label="歌单"
             android:parentActivityName=".MainActivity"
             android:theme="@style/Theme.Neteasy" />
+        <activity
+            android:name=".UserDetailActivity"
+            android:exported="false"
+            android:label="个人信息"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.Neteasy" />
 
         <!-- 内嵌 Node.js 后端前台服务 -->
         <service
