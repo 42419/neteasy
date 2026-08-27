@@ -63,7 +63,9 @@ class PlayerController(
         /** 当前播放音质档位 */
         val quality: AudioQuality = AudioQuality.EXHIGH,
         /** 循环模式 */
-        val repeatMode: RepeatMode = RepeatMode.OFF
+        val repeatMode: RepeatMode = RepeatMode.OFF,
+        /** 网络流已预加载（缓冲）到的位置，用于进度条叠加显示缓存进度 */
+        val bufferedPositionMs: Long = 0
     ) {
         // 列表循环模式下首尾相接，按钮不应该显示为「到头了」
         val hasNext: Boolean get() = (queueIndex in 0 until queueSize - 1) || (repeatMode == RepeatMode.ALL && queueSize > 0)
@@ -476,12 +478,14 @@ class PlayerController(
                     durationMs = 0,
                     queueIndex = queueIndex,
                     queueSize = queueSize,
-                    queue = queue
+                    queue = queue,
+                    bufferedPositionMs = 0
                 )
             return
         }
 
-        // 立即显示歌曲信息，播放器准备好后再补上时长并开始播放
+        // 立即显示歌曲信息，播放器准备好后再补上时长并开始播放；换歌/切音质都要把上一首的
+        // 缓冲进度清零，不然新歌刚加载出来那一瞬间会顶着上一首残留的缓冲进度显示
         _state.value =
             _state.value.copy(
                 isPlaying = false,
@@ -490,7 +494,8 @@ class PlayerController(
                 durationMs = 0,
                 queueIndex = queueIndex,
                 queueSize = queueSize,
-                queue = queue
+                queue = queue,
+                bufferedPositionMs = 0
             )
         startPlayer(url, resumeAtMs, autoPlay)
     }
@@ -562,6 +567,17 @@ class PlayerController(
                 // seek 真正落地了，轮询协程可以放心继续读 currentPosition 了
                 seekingToMs = null
                 seekTimeoutJob?.cancel()
+            }
+            // 网络流预加载进度（0~100 的百分比，相对整首歌时长）：MediaPlayer 这个回调
+            // 虽然在新 API 里标了 deprecated，但 progressive HTTP 播放场景下依然是唯一能拿到
+            // “缓冲到哪了”的信号源（没有用 ExoPlayer，见架构说明），继续用没问题。
+            // durationMs 在 onPrepared 之前还是 0，这时的百分比换算没有意义，直接跳过。
+            p.setOnBufferingUpdateListener { _, percent ->
+                val durationMs = _state.value.durationMs
+                if (durationMs > 0) {
+                    val bufferedMs = (durationMs * percent / 100).coerceIn(0, durationMs)
+                    _state.value = _state.value.copy(bufferedPositionMs = bufferedMs)
+                }
             }
             mediaPlayer = p
             p.prepareAsync()

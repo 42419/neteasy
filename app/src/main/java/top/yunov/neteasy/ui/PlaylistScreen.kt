@@ -3,6 +3,7 @@ package top.yunov.neteasy.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -155,6 +156,8 @@ fun PlaylistScreen(playlistId: Long, repository: NcmRepository, player: PlayerCo
                     ) {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
+                            // 底部留白让最后几首歌不会被悬浮 Minibar 挡住，同上
+                            contentPadding = PaddingValues(bottom = 96.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             if (pl != null) {

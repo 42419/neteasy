@@ -27,7 +27,6 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -39,6 +38,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
@@ -46,6 +46,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import coil.compose.AsyncImage
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeChild
 import kotlinx.coroutines.isActive
 import top.yunov.neteasy.Screen
 import top.yunov.neteasy.data.AudioQuality
@@ -62,89 +66,127 @@ val LocalNavState =
     }
 
 /**
- * 底部区域：紧凑单行迷你播放器（参考主流音乐 App 折叠态样式：封面 + 歌名/歌手 +
- * 播放暂停 + 播放队列，点击展开全屏播放页）+ 底部导航。
+ * 悬浮迷你播放器（紧凑单行：封面 + 歌名/歌手 + 播放暂停 + 播放队列，点击展开全屏播放页）。
  * 上一首/下一首/进度条/音质切换这些完整控制留在展开播放页（NowPlayingScreen），
  * 折叠态只做最核心的信息展示和播放/暂停，不重复堆控件。
+ *
+ * 这是个纯粹的悬浮卡片，不含底部导航——由 [PlayerAwareContent] 统一以覆盖层形式
+ * 挂到每个 Activity 的内容之上，这样首页/我的/搜索/歌单详情都能显示同一个悬浮条，
+ * 不必每个页面各自实现一遍。仅设置页（含存储空间等设置子页）和登录页不接入。
+ *
+ * @param hazeState 由 [PlayerAwareContent] 传入，卡片背后那层内容（列表/封面……）的
+ * 捕获源，卡片用它做半透明高斯模糊的“磨砂玻璃”背景——既能透出下面还有内容，
+ * 又不会跟下面的东西糊在一起看不清文字。传 null 时退化成不透明卡片（理论上不会
+ * 用到，留着只是让这个函数在没有 haze 源的地方也能独立编译/预览）。
  */
 @Composable
-fun Minibar(
+fun PlayerMinibar(
     state: PlayerController.PlayerUiState,
     onToggle: () -> Unit,
     onOpenQueue: () -> Unit,
     onExpand: () -> Unit,
-    navState: NavState
+    modifier: Modifier = Modifier,
+    hazeState: HazeState? = null
 ) {
-    CompositionLocalProvider(LocalNavState provides navState) {
-        Column {
-            val song = state.song
-            if (song != null) {
-                // 悬浮胶囊卡片：整条可点展开，圆角 + 阴影，四周留白让它像“浮”在导航栏上方
-                Surface(
-                    onClick = onExpand,
-                    modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    shadowElevation = 6.dp
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        AsyncImage(
-                            model = song.picUrl.thumbnail(160).ifEmpty { null },
-                            contentDescription = null,
-                            modifier =
-                            Modifier
-                                .size(44.dp)
-                                .clip(RoundedCornerShape(14.dp)),
-                            contentScale = ContentScale.Crop
+    val song = state.song ?: return
+    val glassTint = MaterialTheme.colorScheme.surfaceContainerHigh
+    val cardShape = RoundedCornerShape(24.dp)
+    // 磨砂玻璃卡片：整条可点展开，圆角 + 阴影，四周留白让它像“浮”在内容上方。
+    // color 设成透明，卡片本身的底色改由 hazeChild 的模糊+着色层来画，不然 Surface
+    // 自己那层不透明背景会直接盖住模糊效果，等于白做。
+    //
+    // 关键点：.clip(cardShape) 必须写在 .hazeChild(...) 前面——hazeChild 只按它拿到的
+    // 那份 Modifier 链去判断裁剪范围，不知道 Surface 自己那个 shape 参数的存在。少了这行，
+    // 模糊图层会按整个矩形边界画，圆角这一圈就会露出模糊内容方方正正的直角，看起来是
+    // 一坨形状不对的糊边，而不是干净的圆角卡片。
+    Surface(
+        onClick = onExpand,
+        modifier =
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .let { base ->
+                if (hazeState != null) {
+                    base
+                        .clip(cardShape)
+                        .hazeChild(
+                            state = hazeState,
+                            style =
+                            HazeStyle(
+                                tints = listOf(HazeTint(glassTint.copy(alpha = 0.55f))),
+                                blurRadius = 24.dp,
+                                noiseFactor = 0.1f
+                            )
                         )
-                        Column(
-                            modifier =
-                            Modifier
-                                .weight(1f)
-                                .padding(horizontal = 12.dp)
-                        ) {
-                            Text(
-                                text = song.name,
-                                style = MaterialTheme.typography.titleSmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = song.artists,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        PlayButton(isPlaying = state.isPlaying, onClick = onToggle, size = 40.dp)
-                        IconButton(onClick = onOpenQueue) {
-                            Icon(Icons.Filled.QueueMusic, contentDescription = "播放队列")
-                        }
-                    }
+                } else {
+                    base
                 }
+            },
+        shape = cardShape,
+        color = if (hazeState != null) Color.Transparent else glassTint,
+        shadowElevation = 6.dp
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AsyncImage(
+                model = song.picUrl.thumbnail(160).ifEmpty { null },
+                contentDescription = null,
+                modifier =
+                Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(14.dp)),
+                contentScale = ContentScale.Crop
+            )
+            Column(
+                modifier =
+                Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp)
+            ) {
+                Text(
+                    text = song.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = song.artists,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
-            NavigationBar {
-                NavigationBarItem(
-                    selected = navState.screen == Screen.HOME,
-                    onClick = { navState.onNavigate(Screen.HOME) },
-                    icon = { Icon(Icons.Filled.Home, contentDescription = "首页") },
-                    label = { Text("首页") }
-                )
-                NavigationBarItem(
-                    selected = navState.screen == Screen.PROFILE,
-                    onClick = { navState.onNavigate(Screen.PROFILE) },
-                    icon = { Icon(Icons.Filled.Person, contentDescription = "我的") },
-                    label = { Text("我的") }
-                )
+            PlayButton(isPlaying = state.isPlaying, onClick = onToggle, size = 40.dp)
+            IconButton(onClick = onOpenQueue) {
+                Icon(Icons.Filled.QueueMusic, contentDescription = "播放队列")
             }
         }
+    }
+}
+
+/**
+ * 首页/我的两个 Tab 的底部导航（仅 MainActivity 用）。容器背景设为透明——
+ * 不要那条实色背景条，图标/文字直接浮在页面背景色上，视觉上跟上方悬浮的
+ * [PlayerMinibar] 融为一体，只有那张悬浮卡片本身带一点浅色底和阴影。
+ */
+@Composable
+fun MainNavigationBar(navState: NavState) {
+    NavigationBar(containerColor = Color.Transparent, tonalElevation = 0.dp) {
+        NavigationBarItem(
+            selected = navState.screen == Screen.HOME,
+            onClick = { navState.onNavigate(Screen.HOME) },
+            icon = { Icon(Icons.Filled.Home, contentDescription = "首页") },
+            label = { Text("首页") }
+        )
+        NavigationBarItem(
+            selected = navState.screen == Screen.PROFILE,
+            onClick = { navState.onNavigate(Screen.PROFILE) },
+            icon = { Icon(Icons.Filled.Person, contentDescription = "我的") },
+            label = { Text("我的") }
+        )
     }
 }
 

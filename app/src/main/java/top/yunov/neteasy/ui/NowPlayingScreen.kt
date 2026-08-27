@@ -153,6 +153,12 @@ fun NowPlayingScreen(
                 } else {
                     0f
                 },
+                bufferedProgress =
+                if (state.durationMs > 0) {
+                    state.bufferedPositionMs.toFloat() / state.durationMs
+                } else {
+                    0f
+                },
                 onSeek = { fraction -> onSeek((fraction * state.durationMs).toInt()) },
                 animating = state.isPlaying
             )

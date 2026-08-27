@@ -6,18 +6,11 @@ import android.Manifest
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,7 +19,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -39,17 +31,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import top.yunov.neteasy.data.SettingsStore
 import top.yunov.neteasy.data.ThemeMode
 import top.yunov.neteasy.ui.HomeScreen
-import top.yunov.neteasy.ui.Minibar
+import top.yunov.neteasy.ui.MainNavigationBar
 import top.yunov.neteasy.ui.NavState
-import top.yunov.neteasy.ui.NowPlayingScreen
+import top.yunov.neteasy.ui.PlayerAwareContent
 import top.yunov.neteasy.ui.ProfileScreen
-import top.yunov.neteasy.ui.QueueSheet
 import top.yunov.neteasy.ui.theme.ExpressiveMotion
 import top.yunov.neteasy.ui.theme.NeteasyTheme
 
@@ -157,8 +149,6 @@ private fun NcmApp(settings: SettingsStore) {
     val player = app.playerController
 
     var screen by remember { mutableStateOf(Screen.HOME) }
-    var showQueue by remember { mutableStateOf(false) }
-    var showNowPlaying by remember { mutableStateOf(false) }
     var profileRefreshKey by remember { mutableIntStateOf(0) }
 
     // Android 13+ 通知权限（前台服务通知可见）
@@ -182,92 +172,52 @@ private fun NcmApp(settings: SettingsStore) {
             }
         }
 
-    val playerState by player.state.collectAsState()
-
-    Scaffold(
+    // 悬浮 Minibar / 展开播放页 / 播放队列统一由 PlayerAwareContent 挂载在最外层，
+    // 跟搜索页/歌单详情页共用同一套逻辑；这里只负责首页/我的自己的 Scaffold + 底部 Tab。
+    // minibarBottomPadding = 标准 NavigationBar 高度（M3 规范 80dp）：悬浮卡片得再往上
+    // 抬这么多，不然会直接盖在下面透明的导航栏上，把「首页/我的」的点击区域全挡住，
+    // 导致切不了 Tab（这块被反馈过一次，之前漏了导航栏本身也要占的这段高度）。
+    PlayerAwareContent(
+        player = player,
         modifier = Modifier.fillMaxSize(),
-        bottomBar = {
-            // Minibar 是折叠态紧凑迷你播放器，上一首/下一首/进度条/音质切换这些完整控制
-            // 已经不在这一层了——留在点开后的 NowPlayingScreen 展开播放页里
-            Minibar(
-                state = playerState,
-                onToggle = { player.toggle() },
-                onOpenQueue = { showQueue = true },
-                onExpand = { showNowPlaying = true },
-                navState = NavState(screen, { screen = it })
-            )
-        }
-    ) { innerPadding ->
-        Box(modifier = Modifier.padding(innerPadding)) {
-            // 两个主 Tab keep-alive：切换 Tab 只改变可见性与层级，不重新加载
-            TabHost(visible = screen == Screen.HOME) {
-                HomeScreen(
-                    repository = repository,
-                    onOpenPlaylist = { id ->
-                        context.startActivity(
-                            Intent(context, PlaylistActivity::class.java)
-                                .putExtra(PlaylistActivity.EXTRA_PLAYLIST_ID, id)
-                        )
-                    },
-                    onOpenSearch = { context.startActivity(Intent(context, SearchActivity::class.java)) },
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-            TabHost(visible = screen == Screen.PROFILE) {
-                ProfileScreen(
-                    repository = repository,
-                    cookieStore = cookieStore,
-                    refreshKey = profileRefreshKey,
-                    onLoginClick = { loginLauncher.launch(Intent(context, LoginActivity::class.java)) },
-                    onOpenSettings = { context.startActivity(Intent(context, SettingsActivity::class.java)) },
-                    onOpenPlaylist = { id ->
-                        context.startActivity(
-                            Intent(context, PlaylistActivity::class.java)
-                                .putExtra(PlaylistActivity.EXTRA_PLAYLIST_ID, id)
-                        )
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
+        minibarBottomPadding = 80.dp
+    ) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            bottomBar = { MainNavigationBar(navState = NavState(screen, { screen = it })) }
+        ) { innerPadding ->
+            Box(modifier = Modifier.padding(innerPadding)) {
+                // 两个主 Tab keep-alive：切换 Tab 只改变可见性与层级，不重新加载
+                TabHost(visible = screen == Screen.HOME) {
+                    HomeScreen(
+                        repository = repository,
+                        onOpenPlaylist = { id ->
+                            context.startActivity(
+                                Intent(context, PlaylistActivity::class.java)
+                                    .putExtra(PlaylistActivity.EXTRA_PLAYLIST_ID, id)
+                            )
+                        },
+                        onOpenSearch = { context.startActivity(Intent(context, SearchActivity::class.java)) },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                TabHost(visible = screen == Screen.PROFILE) {
+                    ProfileScreen(
+                        repository = repository,
+                        cookieStore = cookieStore,
+                        refreshKey = profileRefreshKey,
+                        onLoginClick = { loginLauncher.launch(Intent(context, LoginActivity::class.java)) },
+                        onOpenSettings = { context.startActivity(Intent(context, SettingsActivity::class.java)) },
+                        onOpenPlaylist = { id ->
+                            context.startActivity(
+                                Intent(context, PlaylistActivity::class.java)
+                                    .putExtra(PlaylistActivity.EXTRA_PLAYLIST_ID, id)
+                            )
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
         }
-    }
-
-    // 展开播放页仍然是 Compose 内覆盖层，不是独立 Activity——它是“同一播放器展开/收起”，
-    // 不是“跳转到新地方”，返回键收起它而不是退出/跳转别的页面
-    BackHandler(enabled = showNowPlaying) { showNowPlaying = false }
-
-    // 展开播放页转场：从底部滑起 / 收回，跟“从 Minibar 展开”的方向直觉一致
-    val expandEnter =
-        fadeIn(tween(300)) +
-            slideInVertically(tween(300)) { it / 6 }
-    val expandExit =
-        fadeOut(tween(300)) +
-            slideOutVertically(tween(300)) { it / 6 }
-
-    AnimatedVisibility(visible = showNowPlaying, enter = expandEnter, exit = expandExit) {
-        NowPlayingScreen(
-            state = playerState,
-            onToggle = { player.toggle() },
-            onSeek = { player.seekTo(it) },
-            onPrevious = { player.previous() },
-            onNext = { player.next() },
-            onOpenQueue = { showQueue = true },
-            onQualityChange = { quality ->
-                settings.preferredAudioQuality = quality
-                player.setQuality(quality)
-            },
-            onCycleRepeat = { player.cycleRepeatMode() },
-            onCollapse = { showNowPlaying = false }
-        )
-    }
-
-    // 播放队列面板（底部弹出，自带手势下拉关闭 + 返回键关闭，不用套 AnimatedVisibility/BackHandler）
-    if (showQueue) {
-        QueueSheet(
-            queue = playerState.queue,
-            currentIndex = playerState.queueIndex,
-            onSelect = { index -> player.playAt(index) },
-            onDismiss = { showQueue = false }
-        )
     }
 }

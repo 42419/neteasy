@@ -8,6 +8,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -157,6 +158,9 @@ fun SearchScreen(repository: NcmRepository, player: PlayerController, onBack: ()
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(top = 12.dp),
+                    // 底部留白让最后几首歌不会被悬浮 Minibar 挡住（卡片高度+上下留白+系统导航栏，
+                    // 96dp 是估算值，卡片本身高度变了这里也要跟着调）
+                    contentPadding = PaddingValues(bottom = 96.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     itemsIndexed(results, key = { _, song -> song.id }) { index, song ->
