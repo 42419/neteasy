@@ -23,12 +23,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,11 +44,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import top.yunov.neteasy.data.AudioQuality
 import top.yunov.neteasy.data.thumbnail
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.RepeatMode
 import top.yunov.neteasy.ui.theme.ExpressiveMotion
+import top.met6.amll.AppleMusicLyricPlayer
+import top.met6.amll.AppleMusicLyricPlayerStyle
 
 /**
  * 展开后的全屏播放页（点 Minibar 封面/歌名展开）：大标题 + 大封面 + 波浪进度条 + 播放控制。
@@ -65,6 +71,8 @@ fun NowPlayingScreen(
     onCollapse: () -> Unit
 ) {
     val song = state.song ?: return // 理论上不会在没有歌曲时展开；兜底不渲染空页面
+    // 歌词 / 封面切换：默认显示封面，点「词」切换为歌词视图
+    var showLyrics by remember { mutableStateOf(false) }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(
@@ -81,6 +89,19 @@ fun NowPlayingScreen(
                     Icon(Icons.Filled.ExpandMore, contentDescription = "收起")
                 }
                 Spacer(modifier = Modifier.weight(1f))
+                // 歌词 / 封面切换
+                IconButton(onClick = { showLyrics = !showLyrics }) {
+                    Text(
+                        "词",
+                        style = MaterialTheme.typography.titleMedium,
+                        color =
+                        if (showLyrics) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
                 IconButton(onClick = onOpenQueue) {
                     Icon(Icons.Filled.QueueMusic, contentDescription = "播放队列")
                 }
@@ -108,20 +129,54 @@ fun NowPlayingScreen(
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
             )
 
-            Spacer(modifier = Modifier.weight(1f))
-
-            // 大封面：用统一样式的占位（底色 + 音符），加载出图后 crossfade 淡入
-            CoverImage(
-                url = song.picUrl.thumbnail(900),
-                contentDescription = null,
+            // 中部：封面 ↔ 歌词 切换（占据剩余高度，下方控件固定在底部）
+            Box(
                 modifier =
                 Modifier
+                    .weight(1f)
                     .fillMaxWidth()
-                    .aspectRatio(1f)
-                    .shadow(elevation = 16.dp, shape = RoundedCornerShape(28.dp), ambientColor = Color.Black.copy(alpha = 0.3f))
-                    .clip(RoundedCornerShape(28.dp)),
-                contentScale = ContentScale.Crop
-            )
+            ) {
+                if (showLyrics) {
+                    if (state.lyricLines.isNotEmpty()) {
+                        AppleMusicLyricPlayer(
+                            lyricLines = state.lyricLines,
+                            currentTimeMs = state.positionMs,
+                            isPlaying = state.isPlaying,
+                            modifier = Modifier.fillMaxSize(),
+                            style =
+                            AppleMusicLyricPlayerStyle(
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 18.sp,
+                                inactiveMaskAlpha = 0.3f,
+                                backgroundLineScale = 0.75f
+                            ),
+                            onLineClick = { line -> onSeek(line.startTime.toInt()) }
+                        )
+                    } else {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(
+                                text = if (state.lyricLoading) "歌词加载中…" else "暂无歌词",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                } else {
+                    // 大封面：用统一样式的占位（底色 + 音符），加载出图后 crossfade 淡入
+                    CoverImage(
+                        url = song.picUrl.thumbnail(900),
+                        contentDescription = null,
+                        modifier =
+                        Modifier
+                            .align(Alignment.Center)
+                            .fillMaxWidth()
+                            .aspectRatio(1f)
+                            .shadow(elevation = 16.dp, shape = RoundedCornerShape(28.dp), ambientColor = Color.Black.copy(alpha = 0.3f))
+                            .clip(RoundedCornerShape(28.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(20.dp))
 
@@ -134,8 +189,6 @@ fun NowPlayingScreen(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
             }
-
-            Spacer(modifier = Modifier.weight(1f))
 
             // 平滑进度：与 Minibar 共用同一套逐帧插值逻辑，避免“一顿一顿”
             val smoothPositionMs =

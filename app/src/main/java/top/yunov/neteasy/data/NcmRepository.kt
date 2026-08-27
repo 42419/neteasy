@@ -191,4 +191,7 @@ class NcmRepository(private val api: ApiClient) {
     suspend fun userDetail(uid: Long): UserDetail? = JsonParser.parseUserDetail(
         api.get("/user/detail", mapOf("uid" to "$uid"))
     )
+
+    /** 网易云歌词（/lyric）：返回含 lrc/tlyric 的原始 JSON，用作歌词兜底解析。 */
+    suspend fun lyric(id: Long): JSONObject = api.get("/lyric", mapOf("id" to "$id"))
 }

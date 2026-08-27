@@ -6,6 +6,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import top.yunov.neteasy.data.ApiClient
+import top.yunov.neteasy.data.LyricRepository
 import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.SettingsStore
 import top.yunov.neteasy.player.PlayerController
@@ -24,11 +25,13 @@ class NeteasyApp : Application() {
 
     val apiClient: ApiClient by lazy { ApiClient(this) }
     val repository: NcmRepository by lazy { NcmRepository(apiClient) }
+    val lyricRepository: LyricRepository by lazy { LyricRepository(this, repository) }
     val playerController: PlayerController by lazy {
         PlayerController(
             scope = appScope,
             repository = repository,
             appContext = this,
+            lyricRepository = lyricRepository,
             initialQuality = SettingsStore(this).preferredAudioQuality
         )
     }

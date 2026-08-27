@@ -30,7 +30,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.AudioQuality
+import top.yunov.neteasy.data.LyricRepository
 import top.yunov.neteasy.data.NcmRepository
+import top.met6.amll.LyricLine
 
 /** 循环模式：不循环（播完队列停止）/ 列表循环（播完最后一首回到第一首）/ 单曲循环 */
 enum class RepeatMode { OFF, ALL, ONE }
@@ -48,6 +50,7 @@ class PlayerController(
     private val scope: CoroutineScope,
     private val repository: NcmRepository,
     private val appContext: Context,
+    private val lyricRepository: LyricRepository,
     initialQuality: AudioQuality = AudioQuality.EXHIGH
 ) {
     data class PlayerUiState(
@@ -65,7 +68,11 @@ class PlayerController(
         /** 循环模式 */
         val repeatMode: RepeatMode = RepeatMode.OFF,
         /** 网络流已预加载（缓冲）到的位置，用于进度条叠加显示缓存进度 */
-        val bufferedPositionMs: Long = 0
+        val bufferedPositionMs: Long = 0,
+        /** 当前歌曲的歌词（苹果风格逐字，可为空）；[lyricSongId] 标记它属于哪首歌，防止串歌 */
+        val lyricLines: List<LyricLine> = emptyList(),
+        val lyricSongId: Long = -1,
+        val lyricLoading: Boolean = false,
     ) {
         // 列表循环模式下首尾相接，按钮不应该显示为「到头了」
         val hasNext: Boolean get() = (queueIndex in 0 until queueSize - 1) || (repeatMode == RepeatMode.ALL && queueSize > 0)
@@ -92,6 +99,7 @@ class PlayerController(
     private var queue: List<PlayerSong> = emptyList()
     private var queueIndex: Int = -1
     private var loadGeneration = 0 // 防止旧的异步 URL 解析在新一首播放请求之后回来，覆盖新状态
+    private var lyricLoadGeneration = 0 // 防止旧的歌词请求在切换歌曲后回来，覆盖新歌歌词
     private var qualityLevel: String = initialQuality.level
 
     /** 当前偏好音质（用户设置或上次手动选择），作为每首歌开始播放时的“首选”档位 */
@@ -320,6 +328,24 @@ class PlayerController(
         ContextCompat.startForegroundService(appContext, intent)
     }
 
+    /**
+     * 加载某首歌的歌词（Apple Music 风格逐字，来自 LyricRepository）。
+     * 已为该歌加载过（或在加载中）则跳过；带代际号防止切歌后旧请求覆盖新歌歌词。
+     */
+    private fun loadLyrics(songId: Long) {
+        if (_state.value.lyricSongId == songId &&
+            (_state.value.lyricLoading || _state.value.lyricLines.isNotEmpty())
+        ) return
+        val gen = ++lyricLoadGeneration
+        _state.value = _state.value.copy(lyricSongId = songId, lyricLoading = true)
+        scope.launch {
+            val lines = runCatching { lyricRepository.load(songId) }.getOrDefault(emptyList())
+            if (gen == lyricLoadGeneration && _state.value.song?.id == songId) {
+                _state.value = _state.value.copy(lyricLines = lines, lyricLoading = false)
+            }
+        }
+    }
+
     // ---------- 播放控制 ----------
 
     /**
@@ -468,6 +494,7 @@ class PlayerController(
     fun release() {
         releasePlayerOnly()
         abandonAudioFocus()
+        lyricLoadGeneration++ // 失效在途歌词请求，防止旧歌歌词落地
         _state.value = PlayerUiState(quality = _state.value.quality, repeatMode = _state.value.repeatMode)
         queue = emptyList()
         queueIndex = -1
@@ -507,6 +534,8 @@ class PlayerController(
     ) {
         // 先释放旧 player（只释放实例，不清空状态）
         releasePlayerOnly()
+        // 换歌时异步加载歌词（只在该首歌还没加载过时真正请求，命中缓存则立即有值）
+        loadLyrics(song.id)
 
         if (url.isNullOrBlank()) {
             // 无版权/VIP：保留歌曲信息供展示，但无法播放

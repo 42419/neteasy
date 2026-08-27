@@ -1,12 +1,26 @@
-# Add project specific R8 rules here.
-# AGP will combine all keep rule files in src/main/keepRules to pass to R8
-#
-# For more details, see
-#   https://d.android.com/r/tools/r8/keep-rules
+# ============================================================
+# 项目级 R8 keep 规则（AGP 自动合并 src/main/keepRules 下的 *.keep 给 R8）
+# ============================================================
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# ---- nodejs-mobile JNI 桥 ----
+# 关键：NodeJS 的类名 + 外部 native 方法名不能被重命名。
+# native-lib.cpp 是通过 Java_top_yunov_neteasy_NodeJS_startNodeWithArguments
+# 这个固定符号名来注册/绑定 JNI 的，一旦 R8 把类或方法改名，符号对不上，
+# dlopen(node) / 注册会失败，内嵌 Node 后端直接起不来。
+-keepclasseswithmembernames class top.yunov.neteasy.NodeJS {
+    native <methods>;
+}
+
+# 兜底：所有带 native 方法的类都保留成员名
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+
+# ---- org.json ----
+# org.json 内部的 JSONObject/JSONTokener 等对传入对象做反射式包装，
+# 保留整棵类树，避免混淆后运行时 NoSuchMethod / 字段错位。
+-keep class org.json.** { *; }
+
+# ---- vendored AMLL 渲染器（top.met6.amll） ----
+# 模块不大，整体 keep，避免任何 Compose/反射相关的意外裁掉导致歌词渲染异常。
+-keep class top.met6.amll.** { *; }

@@ -198,9 +198,15 @@ android {
 
     buildTypes {
         release {
+            // 开启 R8 混淆 + 资源裁剪，压缩 APK（配合 src/main/keepRules/rules.keep 的 keep 规则）
             optimization {
-                enable = false
+                enable = true
             }
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                // src/main/keepRules 下的 *.keep 由 AGP 自动合并进 R8（rules.keep 里是项目级 keep）
+            )
             signingConfig =
                 if (System.getenv("NETEASY_KEYSTORE_PATH").isNullOrBlank()) {
                     signingConfigs.getByName("debug")
