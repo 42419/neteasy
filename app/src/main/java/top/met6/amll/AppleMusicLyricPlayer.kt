@@ -107,6 +107,14 @@ data class AppleMusicLyricPlayerStyle(
     val hoverColor: Color = Color.White.copy(alpha = 0.067f),
     /** Delay before blur and automatic step-following resume after a user drag. */
     val userScrollResumeDelayMs: Long = 5_000,
+    /**
+     * Fixed spring parameters for the line-scroll motion. When null (default), the analytic
+     * [lyricScrollSpringPolicy] picks stiffness/damping dynamically per line based on the gap
+     * to the next line (AMLL's original behavior). When non-null, every line transition uses
+     * these fixed params instead — lets callers offer a "feel" preset (smooth/responsive/etc.)
+     * without touching the per-line density calculation.
+     */
+    val scrollSpringOverride: AmllSpringParams? = null,
 )
 
 internal class LyricScrollMotion {
@@ -183,7 +191,7 @@ fun AppleMusicLyricPlayer(
         val previousIndex = (scrollTargetIndex - 1).takeIf { it in groups.indices }
         val interval = previousIndex?.let { groups[scrollTargetIndex].main.startTime - groups[it].main.startTime }
         val interlude = previousIndex?.let { groups[scrollTargetIndex].main.startTime - groups[it].main.endTime >= 4_000 } == true
-        val policy = lyricScrollSpringPolicy(
+        val policy = style.scrollSpringOverride ?: lyricScrollSpringPolicy(
             isSeeking = timelineSnapshot.isSeeking,
             isInterludeActive = interlude,
             intervalMs = interval,

@@ -53,6 +53,12 @@
             android:parentActivityName=".SettingsActivity"
             android:theme="@style/Theme.Neteasy" />
         <activity
+            android:name=".LyricSettingsActivity"
+            android:exported="false"
+            android:label="歌词"
+            android:parentActivityName=".SettingsActivity"
+            android:theme="@style/Theme.Neteasy" />
+        <activity
             android:name=".LoginActivity"
             android:exported="false"
             android:label="登录"

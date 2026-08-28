@@ -1,6 +1,7 @@
 package top.yunov.neteasy.data
 
 import android.content.Context
+import top.met6.amll.AmllSpringParams
 
 /** 深色模式选项：跟随系统 / 强制浅色 / 强制深色 */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
@@ -18,6 +19,30 @@ enum class AudioQuality(val level: String, val label: String) {
     EXHIGH("exhigh", "极高"),
     LOSSLESS("lossless", "无损"),
     HIRES("hires", "Hi-Res")
+}
+
+/**
+ * 歌词滚动的“手感”预设——覆盖 AMLL 原本按行间隔动态计算的弹簧参数（[top.met6.amll.lyricScrollSpringPolicy]）。
+ * ADAPTIVE 即不覆盖，沿用原版按歌词密度自适应的效果；其余几档给一个固定观感，供不想深究物理参数的人直接选。
+ */
+enum class LyricSpringPreset(val label: String) {
+    ADAPTIVE("默认（自适应）"),
+    SMOOTH("柔和"),
+    RESPONSIVE("跟手"),
+    JELLO("弹性"),
+    HEAVY("沉稳"),
+    NO_BOUNCE("无回弹");
+
+    /** 对应的固定弹簧参数；ADAPTIVE 返回 null，表示交回 [top.met6.amll.lyricScrollSpringPolicy] 动态计算。 */
+    fun toSpringParams(): AmllSpringParams? =
+        when (this) {
+            ADAPTIVE -> null
+            SMOOTH -> AmllSpringParams(mass = 0.9, stiffness = 140.0, damping = 22.4)
+            RESPONSIVE -> AmllSpringParams(mass = 0.9, stiffness = 260.0, damping = 26.0)
+            JELLO -> AmllSpringParams(mass = 1.0, stiffness = 180.0, damping = 12.0)
+            HEAVY -> AmllSpringParams(mass = 1.6, stiffness = 90.0, damping = 25.2)
+            NO_BOUNCE -> AmllSpringParams(mass = 0.9, stiffness = 200.0, damping = 26.8, soft = true)
+        }
 }
 
 /**
@@ -58,10 +83,85 @@ class SettingsStore(context: Context) {
         }
         set(value) = prefs.edit().putString(KEY_AUDIO_QUALITY, value.level).apply()
 
+    // ---- 歌词渲染细节（AppleMusicLyricPlayerStyle 的可调部分）----
+    // 数值型默认值均与目前 NowPlayingScreen 里写死的效果保持一致，
+    // 加这批设置不改变任何人升级后的默认观感，只是把它们从写死变成可调。
+
+    /** 当前播放行在歌词视口中的垂直锚点（0=贴顶，1=贴底）。 */
+    var lyricAlignPosition: Float
+        get() = prefs.getFloat(KEY_LYRIC_ALIGN_POSITION, 0.2f)
+        set(value) = prefs.edit().putFloat(KEY_LYRIC_ALIGN_POSITION, value.coerceIn(0.05f, 0.9f)).apply()
+
+    /** 逐字高亮遮罩的渐变过渡宽度，越大过渡越柔和。 */
+    var lyricWordFadeWidth: Float
+        get() = prefs.getFloat(KEY_LYRIC_WORD_FADE_WIDTH, 0.5f)
+        set(value) = prefs.edit().putFloat(KEY_LYRIC_WORD_FADE_WIDTH, value.coerceIn(0.05f, 1f)).apply()
+
+    /** 非当前行是否启用模糊效果。 */
+    var lyricEnableBlur: Boolean
+        get() = prefs.getBoolean(KEY_LYRIC_ENABLE_BLUR, true)
+        set(value) = prefs.edit().putBoolean(KEY_LYRIC_ENABLE_BLUR, value).apply()
+
+    /** 播放中非当前行是否做轻微缩放呼吸效果。 */
+    var lyricEnableScale: Boolean
+        get() = prefs.getBoolean(KEY_LYRIC_ENABLE_SCALE, true)
+        set(value) = prefs.edit().putBoolean(KEY_LYRIC_ENABLE_SCALE, value).apply()
+
+    /** 非当前行的不透明度（0=几乎看不见，1=和当前行一样亮）。 */
+    var lyricInactiveAlpha: Float
+        get() = prefs.getFloat(KEY_LYRIC_INACTIVE_ALPHA, 0.3f)
+        set(value) = prefs.edit().putFloat(KEY_LYRIC_INACTIVE_ALPHA, value.coerceIn(0f, 1f)).apply()
+
+    /** 是否显示翻译行。 */
+    var lyricShowTranslation: Boolean
+        get() = prefs.getBoolean(KEY_LYRIC_SHOW_TRANSLATION, true)
+        set(value) = prefs.edit().putBoolean(KEY_LYRIC_SHOW_TRANSLATION, value).apply()
+
+    /** 是否显示逐行音译（如日语罗马音整行版）。 */
+    var lyricShowLineRomanization: Boolean
+        get() = prefs.getBoolean(KEY_LYRIC_SHOW_LINE_ROMANIZATION, true)
+        set(value) = prefs.edit().putBoolean(KEY_LYRIC_SHOW_LINE_ROMANIZATION, value).apply()
+
+    /** 是否显示逐词音译（TTML ruby/roman word）。 */
+    var lyricShowWordRomanization: Boolean
+        get() = prefs.getBoolean(KEY_LYRIC_SHOW_WORD_ROMANIZATION, true)
+        set(value) = prefs.edit().putBoolean(KEY_LYRIC_SHOW_WORD_ROMANIZATION, value).apply()
+
+    /** 歌词滚动的弹簧手感预设。 */
+    var lyricSpringPreset: LyricSpringPreset
+        get() {
+            val name = prefs.getString(KEY_LYRIC_SPRING_PRESET, null)
+            return LyricSpringPreset.entries.firstOrNull { it.name == name } ?: LyricSpringPreset.ADAPTIVE
+        }
+        set(value) = prefs.edit().putString(KEY_LYRIC_SPRING_PRESET, value.name).apply()
+
     private companion object {
         const val KEY_DYNAMIC_COLOR = "dynamic_color"
         const val KEY_FOLLOW_COVER_COLOR = "follow_cover_color"
         const val KEY_THEME_MODE = "theme_mode"
         const val KEY_AUDIO_QUALITY = "audio_quality"
+        const val KEY_LYRIC_ALIGN_POSITION = "lyric_align_position"
+        const val KEY_LYRIC_WORD_FADE_WIDTH = "lyric_word_fade_width"
+        const val KEY_LYRIC_ENABLE_BLUR = "lyric_enable_blur"
+        const val KEY_LYRIC_ENABLE_SCALE = "lyric_enable_scale"
+        const val KEY_LYRIC_INACTIVE_ALPHA = "lyric_inactive_alpha"
+        const val KEY_LYRIC_SHOW_TRANSLATION = "lyric_show_translation"
+        const val KEY_LYRIC_SHOW_LINE_ROMANIZATION = "lyric_show_line_romanization"
+        const val KEY_LYRIC_SHOW_WORD_ROMANIZATION = "lyric_show_word_romanization"
+        const val KEY_LYRIC_SPRING_PRESET = "lyric_spring_preset"
     }
+}
+
+/** 按显示设置裁剪一行歌词——把不想显示的翻译/音译字段清空，不改动渲染器本身。 */
+fun top.met6.amll.LyricLine.filteredForDisplay(
+    showTranslation: Boolean,
+    showLineRomanization: Boolean,
+    showWordRomanization: Boolean,
+): top.met6.amll.LyricLine {
+    if (showTranslation && showLineRomanization && showWordRomanization) return this
+    return copy(
+        translatedLyric = if (showTranslation) translatedLyric else "",
+        romanLyric = if (showLineRomanization) romanLyric else "",
+        words = if (showWordRomanization) words else words.map { it.copy(romanWord = "") },
+    )
 }

@@ -44,7 +44,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import top.yunov.neteasy.data.AudioQuality
 import top.yunov.neteasy.data.thumbnail
 import top.yunov.neteasy.player.PlayerController
@@ -68,7 +67,11 @@ fun NowPlayingScreen(
     onOpenQueue: () -> Unit,
     onQualityChange: (AudioQuality) -> Unit,
     onCycleRepeat: () -> Unit,
-    onCollapse: () -> Unit
+    onCollapse: () -> Unit,
+    /** 歌词渲染样式，由调用方（PlayerOverlay）按 SettingsStore 里的歌词设置组装好传进来。 */
+    lyricStyle: AppleMusicLyricPlayerStyle = AppleMusicLyricPlayerStyle(),
+    /** 已按显示设置（翻译/音译开关）裁剪过的歌词行；默认直接用未裁剪的原始数据。 */
+    lyricLines: List<top.met6.amll.LyricLine> = state.lyricLines
 ) {
     val song = state.song ?: return // 理论上不会在没有歌曲时展开；兜底不渲染空页面
     // 歌词 / 封面切换：默认显示封面，点「词」切换为歌词视图
@@ -137,19 +140,13 @@ fun NowPlayingScreen(
                     .fillMaxWidth()
             ) {
                 if (showLyrics) {
-                    if (state.lyricLines.isNotEmpty()) {
+                    if (lyricLines.isNotEmpty()) {
                         AppleMusicLyricPlayer(
-                            lyricLines = state.lyricLines,
+                            lyricLines = lyricLines,
                             currentTimeMs = state.positionMs,
                             isPlaying = state.isPlaying,
                             modifier = Modifier.fillMaxSize(),
-                            style =
-                            AppleMusicLyricPlayerStyle(
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontSize = 18.sp,
-                                inactiveMaskAlpha = 0.3f,
-                                backgroundLineScale = 0.75f
-                            ),
+                            style = lyricStyle,
                             onLineClick = { line -> onSeek(line.startTime.toInt()) }
                         )
                     } else {

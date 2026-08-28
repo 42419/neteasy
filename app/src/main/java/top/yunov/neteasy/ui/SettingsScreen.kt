@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -76,6 +77,7 @@ fun SettingsScreen(
     followCoverColor: Boolean,
     onFollowCoverColorChange: (Boolean) -> Unit,
     onOpenStorage: () -> Unit,
+    onOpenLyricSettings: () -> Unit,
     currentVersion: String,
     defaultQuality: AudioQuality,
     onDefaultQualityChange: (AudioQuality) -> Unit,
@@ -213,6 +215,30 @@ fun SettingsScreen(
                     title = "存储空间",
                     subtitle = "查看并清理占用的存储空间",
                     modifier = Modifier.clickable(onClick = onOpenStorage)
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // 歌词渲染细节：对齐位置/模糊/翻译音译显隐/滚动手感，跳转到独立页面
+            Column(
+                modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(MaterialTheme.shapes.extraLarge)
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            ) {
+                SettingRow(
+                    icon = Icons.Filled.Lyrics,
+                    title = "歌词",
+                    subtitle = "对齐位置、模糊、翻译音译显隐、滚动手感",
+                    modifier = Modifier.clickable(onClick = onOpenLyricSettings)
                 ) {
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowForward,

@@ -151,9 +151,21 @@ tasks.configureEach {
 // providers.exec 是配置缓存安全的写法（不要用 "git ...".execute()）。
 val gitTag: String =
     try {
-        providers.exec {
-            commandLine("git", "describe", "--tags", "--abbrev=0")
-        }.standardOutput.asText.get().trim().removePrefix("v")
+        val result =
+            providers.exec {
+                commandLine("git", "describe", "--tags", "--abbrev=0")
+                // 配置缓存会在“存储缓存”阶段单独重跑这个 ValueSource 做指纹快照，
+                // 那一步是 Gradle 内部机制触发的，不经过这里的 try/catch——
+                // 没有 tag 时 git 以退出码 128 失败会直接把配置缓存写入过程炸掉。
+                // 关掉非零退出码抛异常，改成拿到的 exitValue 手动判断，
+                // 保证这个 provider 在“无 tag”场景下永远不抛异常，配置缓存存取都安全。
+                isIgnoreExitValue = true
+            }
+        if (result.result.get().exitValue == 0) {
+            result.standardOutput.asText.get().trim().removePrefix("v")
+        } else {
+            ""
+        }
     } catch (e: Exception) {
         ""
     }

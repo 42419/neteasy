@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -23,9 +25,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import top.met6.amll.AppleMusicLyricPlayerStyle
 import top.yunov.neteasy.data.SettingsStore
+import top.yunov.neteasy.data.filteredForDisplay
 import top.yunov.neteasy.player.PlayerController
 
 /**
@@ -58,6 +66,57 @@ fun PlayerAwareContent(
 
     var showQueue by remember { mutableStateOf(false) }
     var showNowPlaying by remember { mutableStateOf(false) }
+
+    // 歌词渲染细节设置（对齐/模糊/弹簧手感/翻译音译显隐……）是在独立的 LyricSettingsActivity 里改的，
+    // 跟主题设置一样，onResume 时重新从 SharedPreferences 读一次即可保持同步，不需要跨 Activity 回调。
+    var lyricAlignPosition by remember { mutableStateOf(settings.lyricAlignPosition) }
+    var lyricWordFadeWidth by remember { mutableStateOf(settings.lyricWordFadeWidth) }
+    var lyricEnableBlur by remember { mutableStateOf(settings.lyricEnableBlur) }
+    var lyricEnableScale by remember { mutableStateOf(settings.lyricEnableScale) }
+    var lyricInactiveAlpha by remember { mutableStateOf(settings.lyricInactiveAlpha) }
+    var lyricShowTranslation by remember { mutableStateOf(settings.lyricShowTranslation) }
+    var lyricShowLineRomanization by remember { mutableStateOf(settings.lyricShowLineRomanization) }
+    var lyricShowWordRomanization by remember { mutableStateOf(settings.lyricShowWordRomanization) }
+    var lyricSpringPreset by remember { mutableStateOf(settings.lyricSpringPreset) }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer =
+            LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    lyricAlignPosition = settings.lyricAlignPosition
+                    lyricWordFadeWidth = settings.lyricWordFadeWidth
+                    lyricEnableBlur = settings.lyricEnableBlur
+                    lyricEnableScale = settings.lyricEnableScale
+                    lyricInactiveAlpha = settings.lyricInactiveAlpha
+                    lyricShowTranslation = settings.lyricShowTranslation
+                    lyricShowLineRomanization = settings.lyricShowLineRomanization
+                    lyricShowWordRomanization = settings.lyricShowWordRomanization
+                    lyricSpringPreset = settings.lyricSpringPreset
+                }
+            }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val lyricStyle =
+        AppleMusicLyricPlayerStyle(
+            color = MaterialTheme.colorScheme.onSurface,
+            fontSize = 18.sp,
+            alignPosition = lyricAlignPosition,
+            wordFadeWidth = lyricWordFadeWidth,
+            inactiveMaskAlpha = lyricInactiveAlpha,
+            backgroundLineScale = 0.75f,
+            enableBlur = lyricEnableBlur,
+            enableScale = lyricEnableScale,
+            scrollSpringOverride = lyricSpringPreset.toSpringParams()
+        )
+    val filteredLyricLines =
+        remember(playerState.lyricLines, lyricShowTranslation, lyricShowLineRomanization, lyricShowWordRomanization) {
+            playerState.lyricLines.map {
+                it.filteredForDisplay(lyricShowTranslation, lyricShowLineRomanization, lyricShowWordRomanization)
+            }
+        }
 
     // 悬浮卡片自己拿当前歌曲封面做模糊背景（见 PlayerMinibar），不需要再从这层内容
     // 捕获背景做“真实内容模糊”了，content() 就是普通内容，不用额外包一层
@@ -103,7 +162,9 @@ fun PlayerAwareContent(
                 player.setQuality(quality)
             },
             onCycleRepeat = { player.cycleRepeatMode() },
-            onCollapse = { showNowPlaying = false }
+            onCollapse = { showNowPlaying = false },
+            lyricStyle = lyricStyle,
+            lyricLines = filteredLyricLines
         )
     }
 

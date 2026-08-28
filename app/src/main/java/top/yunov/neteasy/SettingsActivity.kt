@@ -92,6 +92,7 @@ class SettingsActivity : ComponentActivity() {
                         followCoverColor = it
                     },
                     onOpenStorage = { startActivity(Intent(this, StorageActivity::class.java)) },
+                    onOpenLyricSettings = { startActivity(Intent(this, LyricSettingsActivity::class.java)) },
                     currentVersion = currentVersion,
                     defaultQuality = defaultQuality,
                     onDefaultQualityChange = {
