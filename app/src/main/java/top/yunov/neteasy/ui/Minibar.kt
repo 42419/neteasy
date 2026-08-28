@@ -1,6 +1,7 @@
 package top.yunov.neteasy.ui
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,6 +38,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -45,10 +47,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.HazeStyle
-import dev.chrisbanes.haze.HazeTint
-import dev.chrisbanes.haze.hazeChild
 import kotlinx.coroutines.isActive
 import top.yunov.neteasy.Screen
 import top.yunov.neteasy.data.AudioQuality
@@ -72,11 +70,6 @@ val LocalNavState =
  * 这是个纯粹的悬浮卡片，不含底部导航——由 [PlayerAwareContent] 统一以覆盖层形式
  * 挂到每个 Activity 的内容之上，这样首页/我的/搜索/歌单详情都能显示同一个悬浮条，
  * 不必每个页面各自实现一遍。仅设置页（含存储空间等设置子页）和登录页不接入。
- *
- * @param hazeState 由 [PlayerAwareContent] 传入，卡片背后那层内容（列表/封面……）的
- * 捕获源，卡片用它做半透明高斯模糊的“磨砂玻璃”背景——既能透出下面还有内容，
- * 又不会跟下面的东西糊在一起看不清文字。传 null 时退化成不透明卡片（理论上不会
- * 用到，留着只是让这个函数在没有 haze 源的地方也能独立编译/预览）。
  */
 @Composable
 fun PlayerMinibar(
@@ -84,83 +77,82 @@ fun PlayerMinibar(
     onToggle: () -> Unit,
     onOpenQueue: () -> Unit,
     onExpand: () -> Unit,
-    modifier: Modifier = Modifier,
-    hazeState: HazeState? = null
+    modifier: Modifier = Modifier
 ) {
     val song = state.song ?: return
     val glassTint = MaterialTheme.colorScheme.surfaceContainerHigh
     val cardShape = RoundedCornerShape(24.dp)
-    // 磨砂玻璃卡片：整条可点展开，圆角 + 阴影，四周留白让它像“浮”在内容上方。
-    // color 设成透明，卡片本身的底色改由 hazeChild 的模糊+着色层来画，不然 Surface
-    // 自己那层不透明背景会直接盖住模糊效果，等于白做。
-    //
-    // 关键点：.clip(cardShape) 必须写在 .hazeChild(...) 前面——hazeChild 只按它拿到的
-    // 那份 Modifier 链去判断裁剪范围，不知道 Surface 自己那个 shape 参数的存在。少了这行，
-    // 模糊图层会按整个矩形边界画，圆角这一圈就会露出模糊内容方方正正的直角，看起来是
-    // 一坨形状不对的糊边，而不是干净的圆角卡片。
+
+    // 磨砂玻璃背景：曾经想做“卡片背后内容真实模糊”（haze 库），但那条路在 LazyColumn
+    // 当模糊源时有个已知未修复的 bug（渲染出来是一坨方方正正的糊斑，见上次修复记录），
+    // 换成更朴素也更稳的做法：拿当前播放歌曲的封面整张拉伸铺满、原生 Modifier.blur() 
+    // 模糊一下当卡片背景，不依赖任何第三方库。跟“正在播的这首歌”强关联，
+    // Spotify / Apple Music 的迷你播放条也是这个思路，观感上不比真背景模糊差。
     Surface(
         onClick = onExpand,
         modifier =
         modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-            .let { base ->
-                if (hazeState != null) {
-                    base
-                        .clip(cardShape)
-                        .hazeChild(
-                            state = hazeState,
-                            style =
-                            HazeStyle(
-                                tints = listOf(HazeTint(glassTint.copy(alpha = 0.55f))),
-                                blurRadius = 24.dp,
-                                noiseFactor = 0.1f
-                            )
-                        )
-                } else {
-                    base
-                }
-            },
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         shape = cardShape,
-        color = if (hazeState != null) Color.Transparent else glassTint,
+        color = Color.Transparent,
         shadowElevation = 6.dp
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Box {
+            // Modifier.blur() 底层是 RenderEffect，只有 Android 12（API 31）+ 才生效；
+            // minSdk 29 的老设备上这行相当于没写，图片正常显示只是不模糊，不会崩，
+            // 优雅降级，不用额外判断版本。
             CoverImage(
                 url = song.picUrl.thumbnail(160),
                 contentDescription = null,
-                modifier =
-                Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(14.dp)),
+                modifier = Modifier.matchParentSize().blur(28.dp),
                 contentScale = ContentScale.Crop
             )
-            Column(
+            // 模糊完的封面亮度/色调不可控（有的封面很暗有的很花花绿绿），叠一层半透明
+            // 卡片底色兜底文字对比度和整体基调统一，不会出现文字糊在图片上看不清的情况
+            Box(
                 modifier =
                 Modifier
-                    .weight(1f)
-                    .padding(horizontal = 12.dp)
+                    .matchParentSize()
+                    .background(glassTint.copy(alpha = 0.55f))
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = song.name,
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                CoverImage(
+                    url = song.picUrl.thumbnail(160),
+                    contentDescription = null,
+                    modifier =
+                    Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(14.dp)),
+                    contentScale = ContentScale.Crop
                 )
-                Text(
-                    text = song.artists,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            PlayButton(isPlaying = state.isPlaying, onClick = onToggle, size = 40.dp)
-            IconButton(onClick = onOpenQueue) {
-                Icon(Icons.Filled.QueueMusic, contentDescription = "播放队列")
+                Column(
+                    modifier =
+                    Modifier
+                        .weight(1f)
+                        .padding(horizontal = 12.dp)
+                ) {
+                    Text(
+                        text = song.name,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = song.artists,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                PlayButton(isPlaying = state.isPlaying, onClick = onToggle, size = 40.dp)
+                IconButton(onClick = onOpenQueue) {
+                    Icon(Icons.Filled.QueueMusic, contentDescription = "播放队列")
+                }
             }
         }
     }

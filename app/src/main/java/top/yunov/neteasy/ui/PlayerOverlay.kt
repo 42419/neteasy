@@ -25,8 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import dev.chrisbanes.haze.haze
-import dev.chrisbanes.haze.rememberHazeState
 import top.yunov.neteasy.data.SettingsStore
 import top.yunov.neteasy.player.PlayerController
 
@@ -61,15 +59,10 @@ fun PlayerAwareContent(
     var showQueue by remember { mutableStateOf(false) }
     var showNowPlaying by remember { mutableStateOf(false) }
 
-    // Haze 捕获悬浮卡片下面那层内容（content()），供卡片做磨砂玻璃背景用——
-    // 卡片本身不知道自己下面具体是什么（列表/歌单封面/搜索结果……），只需要
-    // 知道“该往哪捕获”，所以捕获点和使用点分开：这里标记源，PlayerMinibar 里取用
-    val hazeState = rememberHazeState()
-
+    // 悬浮卡片自己拿当前歌曲封面做模糊背景（见 PlayerMinibar），不需要再从这层内容
+    // 捕获背景做“真实内容模糊”了，content() 就是普通内容，不用额外包一层
     Box(modifier = modifier.fillMaxSize()) {
-        Box(modifier = Modifier.fillMaxSize().haze(state = hazeState)) {
-            content()
-        }
+        content()
 
         // 悬浮卡片贴在内容最下方，四周留白 + 阴影，压在系统导航栏（手势条/三大金刚键）
         // 之上——不用它把内容顶上去（不占布局空间），是真正“浮”在页面上的覆盖层。
@@ -79,7 +72,6 @@ fun PlayerAwareContent(
                 onToggle = { player.toggle() },
                 onOpenQueue = { showQueue = true },
                 onExpand = { showNowPlaying = true },
-                hazeState = hazeState,
                 modifier =
                 Modifier
                     .align(Alignment.BottomCenter)
