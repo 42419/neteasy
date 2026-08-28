@@ -10,6 +10,7 @@ import top.yunov.neteasy.data.LyricRepository
 import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.SettingsStore
 import top.yunov.neteasy.player.PlayerController
+import top.yunov.neteasy.ui.theme.CoverThemeController
 
 /**
  * 应用入口：冷启动时拉起 Node 后端前台服务。
@@ -34,6 +35,10 @@ class NeteasyApp : Application() {
             lyricRepository = lyricRepository,
             initialQuality = SettingsStore(this).preferredAudioQuality
         )
+    }
+    /** 封面动态取色：跟着 playerController 当前歌曲变，见类注释 */
+    val coverThemeController: CoverThemeController by lazy {
+        CoverThemeController(scope = appScope, appContext = this, player = playerController)
     }
 
     override fun onCreate() {

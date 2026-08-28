@@ -25,6 +25,8 @@ enum class AudioQuality(val level: String, val label: String) {
  * - themeMode：深色模式（跟随系统 / 浅色 / 深色）。默认跟随系统。
  * - dynamicColor：是否跟随系统动态取色（Material You）。默认开启；
  *   关闭时回退到网易云品牌红配色。
+ * - followCoverColor：是否跟随当前播放歌曲封面取色（覆盖 dynamicColor）。默认关闭
+ *   （opt-in——这是个视觉冲击比较大的效果，不默认打开，怕有人不喜欢颜色跟着换歌跳来跳去）。
  * - preferredAudioQuality：音质偏好，仅作为「新开始播放一首歌时优先尝试的音质」，
  *   实际每首歌可选的音质列表以该歌曲 /song/detail 返回的 l/h/sq/hr 字段为准
  *   （在 Minibar 的音质按钮里现查现列，不在这里写死）。默认「极高」。
@@ -35,6 +37,10 @@ class SettingsStore(context: Context) {
     var dynamicColor: Boolean
         get() = prefs.getBoolean(KEY_DYNAMIC_COLOR, true)
         set(value) = prefs.edit().putBoolean(KEY_DYNAMIC_COLOR, value).apply()
+
+    var followCoverColor: Boolean
+        get() = prefs.getBoolean(KEY_FOLLOW_COVER_COLOR, false)
+        set(value) = prefs.edit().putBoolean(KEY_FOLLOW_COVER_COLOR, value).apply()
 
     var themeMode: ThemeMode
         get() =
@@ -54,6 +60,7 @@ class SettingsStore(context: Context) {
 
     private companion object {
         const val KEY_DYNAMIC_COLOR = "dynamic_color"
+        const val KEY_FOLLOW_COVER_COLOR = "follow_cover_color"
         const val KEY_THEME_MODE = "theme_mode"
         const val KEY_AUDIO_QUALITY = "audio_quality"
     }

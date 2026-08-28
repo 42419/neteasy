@@ -59,6 +59,7 @@ import top.yunov.neteasy.data.UpdateUiState
  * 设置页（MD3 Expressive）：
  * - 深色模式：跟随系统 / 浅色 / 深色（三选一 SegmentedButton）
  * - 动态取色：Material You 壁纸色开关（仅 Android 12+ 显示）
+ * - 封面取色：跟随当前播放歌曲封面变化的开关，优先级高于动态取色
  * - 存储空间：点进去是独立页面（StorageScreen），参考网易云官方存储空间页样式，
  *   这里只是一个跳转入口
  * - 检查更新：对比 GitHub Releases 最新版本，有更新弹窗展示更新内容 + 下载安装
@@ -72,6 +73,8 @@ fun SettingsScreen(
     dynamicColor: Boolean,
     dynamicColorSupported: Boolean,
     onDynamicColorChange: (Boolean) -> Unit,
+    followCoverColor: Boolean,
+    onFollowCoverColorChange: (Boolean) -> Unit,
     onOpenStorage: () -> Unit,
     currentVersion: String,
     defaultQuality: AudioQuality,
@@ -166,8 +169,29 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(20.dp))
             }
 
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // 封面取色：跟着当前播放歌曲的封面变，优先级比动态取色高（开启后忽略动态取色）
+            Column(
+                modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(MaterialTheme.shapes.extraLarge)
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            ) {
+                SettingRow(
+                    icon = Icons.Filled.Palette,
+                    title = "封面取色",
+                    subtitle = "跟随当前播放歌曲的封面变化"
+                ) {
+                    Switch(checked = followCoverColor, onCheckedChange = onFollowCoverColorChange)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
             Text(
-                "关闭动态取色后使用网易云品牌红配色\n动态取色需 Android 12 及以上",
+                "封面取色开启后会覆盖动态取色\n关闭动态取色后使用网易云品牌红配色\n动态取色需 Android 12 及以上",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,

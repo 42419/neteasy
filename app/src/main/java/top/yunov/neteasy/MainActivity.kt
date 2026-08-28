@@ -19,6 +19,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -64,6 +65,7 @@ class MainActivity : ComponentActivity() {
             val settings = remember { SettingsStore(applicationContext) }
             var themeMode by remember { mutableStateOf(settings.themeMode) }
             var dynamicColor by remember { mutableStateOf(settings.dynamicColor) }
+            var followCoverColor by remember { mutableStateOf(settings.followCoverColor) }
 
             // 设置页现在是独立 Activity，改完主题这边收不到直接回调，
             // 每次从别的 Activity 回到前台（onResume）都重新读一次持久化设置，保持同步
@@ -74,6 +76,7 @@ class MainActivity : ComponentActivity() {
                         if (event == Lifecycle.Event.ON_RESUME) {
                             themeMode = settings.themeMode
                             dynamicColor = settings.dynamicColor
+                            followCoverColor = settings.followCoverColor
                         }
                     }
                 lifecycleOwner.lifecycle.addObserver(observer)
@@ -86,7 +89,17 @@ class MainActivity : ComponentActivity() {
                     ThemeMode.LIGHT -> false
                     ThemeMode.DARK -> true
                 }
-            NeteasyTheme(darkTheme = darkTheme, dynamicColor = dynamicColor) {
+            // 封面取色：跟着播放器当前歌曲实时变，不属于「onResume 才刷新」那批静态设置，
+            // 直接订阅 App 级单例（开关本身还是 onResume 才同步，跟 dynamicColor 等一致）
+            val coverSeedColor =
+                if (followCoverColor) {
+                    val app = applicationContext as NeteasyApp
+                    val seed by app.coverThemeController.seedColor.collectAsState()
+                    seed
+                } else {
+                    null
+                }
+            NeteasyTheme(darkTheme = darkTheme, dynamicColor = dynamicColor, coverSeedColor = coverSeedColor) {
                 NcmApp(settings = settings)
             }
         }

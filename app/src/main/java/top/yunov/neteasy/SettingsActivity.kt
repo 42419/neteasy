@@ -59,6 +59,7 @@ class SettingsActivity : ComponentActivity() {
         setContent {
             var themeMode by remember { mutableStateOf(settings.themeMode) }
             var dynamicColor by remember { mutableStateOf(settings.dynamicColor) }
+            var followCoverColor by remember { mutableStateOf(settings.followCoverColor) }
             var defaultQuality by remember { mutableStateOf(settings.preferredAudioQuality) }
             var updateState by remember { mutableStateOf<UpdateUiState>(UpdateUiState.Idle) }
             // 下载完成后记下本地文件路径 + DownloadManager 的下载 id，点「安装」时要用
@@ -84,6 +85,11 @@ class SettingsActivity : ComponentActivity() {
                     onDynamicColorChange = {
                         settings.dynamicColor = it
                         dynamicColor = it
+                    },
+                    followCoverColor = followCoverColor,
+                    onFollowCoverColorChange = {
+                        settings.followCoverColor = it
+                        followCoverColor = it
                     },
                     onOpenStorage = { startActivity(Intent(this, StorageActivity::class.java)) },
                     currentVersion = currentVersion,

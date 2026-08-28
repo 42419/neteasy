@@ -268,6 +268,9 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
+    // 封面动态取色：Palette 提取种子色 + material-kolor 生成整套 M3 配色
+    implementation("androidx.palette:palette-ktx:1.0.0")
+    implementation("com.materialkolor:material-kolor:4.0.5")
     implementation(libs.androidx.lifecycle.runtime.ktx)
     // M3：网络 + 图片加载（后端在 127.0.0.1 本地，OkHttp 轻量封装）
     implementation(libs.okhttp)
