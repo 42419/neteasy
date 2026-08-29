@@ -1,12 +1,10 @@
 package top.yunov.neteasy.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,20 +19,33 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import kotlinx.coroutines.launch
 import top.met6.amll.AppleMusicLyricPlayerStyle
 import top.yunov.neteasy.data.SettingsStore
 import top.yunov.neteasy.data.filteredForDisplay
 import top.yunov.neteasy.player.PlayerController
+
+/**
+ * Minibar ↔ 展开播放页的“逻辑目标状态”，跟连续的拖动进度分开管：拖动过程中进度是
+ * 连续值（0..1，可能停在任意中间态），但返回键、收起按钮这些离散操作得知道
+ * “现在算展开还是收起”，不能看瞬时进度（拖到一半松手前它俩语义不一样）。
+ */
+private enum class SheetTarget { COLLAPSED, EXPANDED }
 
 /**
  * 悬浮 Minibar 的统一挂载点：把 [PlayerMinibar]（悬浮卡片）+ 展开播放页
@@ -46,6 +57,16 @@ import top.yunov.neteasy.player.PlayerController
  * 无关，保持干净。
  *
  * 播放器/设置都是 App 级单例状态，这里只是订阅展示，不持有跨 Activity 状态。
+ *
+ * Minibar 展开成全屏播放页支持两种触发方式：
+ * - 点击：弹簧动画一步到位（[expandSheet]/[collapseSheet]，见函数体内）
+ * - 手动拖动：在 Minibar 上下拖动实时跟手展开/收起，松手按拖动距离/甩动速度/当前进度
+ *   三级判断该展开还是收起，再弹簧归位；收起瞬间 Minibar 有一下轻微压扁再弹回的
+ *   “落地感”。手感思路参考自 PixelPlayerHQ/PixelPlayer 的拖动展开手势（具体见
+ *   PlayerSheetMotion.kt 顶部注释）——那边是把 Minibar/全屏播放页做成同一个连续
+ *   变形的 Box（宽高圆角都跟着进度插值），这里两者布局差异太大没照抄那套“形状
+ *   连续变形”的实现，改用透明度+位移交叉过渡来表现同一套拖动手感（跟手、甩动
+ *   判定、回弹参数是照抄的，视觉呈现做了简化，下面每一步都有注释说明）。
  */
 @Composable
 fun PlayerAwareContent(
@@ -63,9 +84,10 @@ fun PlayerAwareContent(
     val context = LocalContext.current
     val settings = remember { SettingsStore(context) }
     val playerState by player.state.collectAsState()
+    val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
 
     var showQueue by remember { mutableStateOf(false) }
-    var showNowPlaying by remember { mutableStateOf(false) }
 
     // 歌词渲染细节设置（对齐/模糊/弹簧手感/翻译音译显隐……）是在独立的 LyricSettingsActivity 里改的，
     // 跟主题设置一样，onResume 时重新从 SharedPreferences 读一次即可保持同步，不需要跨 Activity 回调。
@@ -118,6 +140,99 @@ fun PlayerAwareContent(
             }
         }
 
+    // ---- Minibar ↔ 展开播放页：手动拖动展开/收起 ----
+    var sheetTarget by remember { mutableStateOf(SheetTarget.COLLAPSED) }
+    // 连续展开进度：0=完全收起（只看得到 Minibar），1=完全展开（只看得到全屏播放页）。
+    // 拖动过程中直接 snapTo 跟手；松手/点击后用弹簧 animateTo 归位。
+    val expansionFraction = remember { Animatable(0f) }
+    // Minibar 收起落地时的压扁-弹回效果，跟 expansionFraction 分开一条动画轨道，
+    // 不然“归位”和“压扁回弹”这两条曲线互相干扰会显得很怪。
+    val minibarSquash = remember { Animatable(1f) }
+    // 拖满这么多像素视为“完全展开”——手指拖动距离到展开进度的换算尺度，
+    // 同时也是 NowPlayingScreen 从底部升起的滑动距离，两者共用同一个值，
+    // 保证“拖了多少”和“画面挪了多少”视觉上是匹配的，不会看着不跟手。
+    val dragExtentPx = with(density) { 320.dp.toPx() }
+    val minibarSlidePx = with(density) { 28.dp.toPx() }
+
+    fun expandSheet(initialVelocity: Float = 0f) {
+        sheetTarget = SheetTarget.EXPANDED
+        scope.launch {
+            expansionFraction.animateTo(
+                targetValue = 1f,
+                initialVelocity = initialVelocity,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium)
+            )
+        }
+    }
+
+    fun collapseSheet(initialVelocity: Float = 0f) {
+        val currentFraction = expansionFraction.value
+        sheetTarget = SheetTarget.COLLAPSED
+        scope.launch {
+            launch {
+                minibarSquash.snapTo(collapseInitialSquash(currentFraction))
+                minibarSquash.animateTo(
+                    targetValue = 1f,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessVeryLow)
+                )
+            }
+            expansionFraction.animateTo(
+                targetValue = 0f,
+                initialVelocity = initialVelocity,
+                animationSpec = spring(dampingRatio = collapseSpringDamping(currentFraction), stiffness = Spring.StiffnessLow)
+            )
+        }
+    }
+
+    // 展开播放页仍然是 Compose 内覆盖层，不是独立 Activity——它是“同一播放器展开/收起”，
+    // 不是“跳转到新地方”；返回键走跟点收起按钮一样的弹簧动画收起它，不是硬切消失。
+    BackHandler(enabled = sheetTarget == SheetTarget.EXPANDED) { collapseSheet() }
+
+    // Minibar 上的拖动手势：作为 modifier 参数传入 PlayerMinibar，会排在 Surface 自带的
+    // onClick（内部用 Modifier.clickable 实现）之前生效——拖动一旦越过触摸阈值就会
+    // consume 掉这次手势，不会再触发点击；没拖动过的纯点击不受影响，照常展开。
+    val minibarDragModifier =
+        Modifier.pointerInput(dragExtentPx) {
+            val velocityTracker = VelocityTracker()
+            var dragStartFraction = 0f
+            var dragStartTarget = SheetTarget.COLLAPSED
+            var accumulatedDragPx = 0f
+            detectVerticalDragGestures(
+                onDragStart = {
+                    velocityTracker.resetTracking()
+                    dragStartFraction = expansionFraction.value
+                    dragStartTarget = sheetTarget
+                    accumulatedDragPx = 0f
+                },
+                onVerticalDrag = { change, dragAmount ->
+                    change.consume()
+                    accumulatedDragPx += dragAmount
+                    val next = computeDragFraction(dragStartFraction, accumulatedDragPx, dragExtentPx)
+                    scope.launch { expansionFraction.snapTo(next) }
+                    velocityTracker.addPosition(change.uptimeMillis, change.position)
+                },
+                onDragEnd = {
+                    val verticalVelocity = velocityTracker.calculateVelocity().y
+                    // px/s 甩动速度换算成 fraction/s，喂给收尾的弹簧动画当初速度，
+                    // 这样松手瞬间的动画不会“断档”，是这一下甩动的自然延续。
+                    val fractionVelocity = -verticalVelocity / dragExtentPx
+                    val expand =
+                        resolveDragTarget(
+                            accumulatedDragPx = accumulatedDragPx,
+                            minDragThresholdPx = with(density) { 24.dp.toPx() },
+                            verticalVelocity = verticalVelocity,
+                            velocityThresholdPxPerSec = 600f,
+                            currentFraction = expansionFraction.value
+                        )
+                    if (expand) expandSheet(fractionVelocity) else collapseSheet(fractionVelocity)
+                },
+                onDragCancel = {
+                    // 手势被打断（比如被其他手势抢走）：撤销这次拖动，回到拖动开始前的状态
+                    if (dragStartTarget == SheetTarget.EXPANDED) expandSheet() else collapseSheet()
+                }
+            )
+        }
+
     // 悬浮卡片自己拿当前歌曲封面做模糊背景（见 PlayerMinibar），不需要再从这层内容
     // 捕获背景做“真实内容模糊”了，content() 就是普通内容，不用额外包一层
     Box(modifier = modifier.fillMaxSize()) {
@@ -130,42 +245,61 @@ fun PlayerAwareContent(
                 state = playerState,
                 onToggle = { player.toggle() },
                 onOpenQueue = { showQueue = true },
-                onExpand = { showNowPlaying = true },
+                onExpand = { expandSheet() },
                 modifier =
                 Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .windowInsetsPadding(WindowInsets.navigationBars)
                     .padding(bottom = minibarBottomPadding)
+                    .graphicsLayer {
+                        // 读 Animatable.value 放在 graphicsLayer 里（draw 阶段），
+                        // 拖动/动画每一帧只触发重绘不触发重新布局，滑起来更顺。
+                        val fraction = expansionFraction.value
+                        // alpha 用 1.6 倍速度提前淡出——展开到一半左右 Minibar 基本就
+                        // 看不见了，避免它跟正在升起的全屏播放页长时间叠在一起显得脏。
+                        alpha = (1f - fraction * 1.6f).coerceIn(0f, 1f)
+                        translationY = fraction * minibarSlidePx
+                        val squash = minibarSquash.value
+                        scaleX = squash
+                        scaleY = squash
+                    }
+                    .then(minibarDragModifier)
             )
         }
-    }
 
-    // 展开播放页仍然是 Compose 内覆盖层，不是独立 Activity——它是“同一播放器展开/收起”，
-    // 不是“跳转到新地方”，返回键收起它而不是退出/跳转别的页面
-    BackHandler(enabled = showNowPlaying) { showNowPlaying = false }
-
-    // 展开播放页转场：从底部滑起 / 收回，跟“从 Minibar 展开”的方向直觉一致
-    val expandEnter = fadeIn(tween(300)) + slideInVertically(tween(300)) { it / 6 }
-    val expandExit = fadeOut(tween(300)) + slideOutVertically(tween(300)) { it / 6 }
-
-    AnimatedVisibility(visible = showNowPlaying, enter = expandEnter, exit = expandExit) {
-        NowPlayingScreen(
-            state = playerState,
-            onToggle = { player.toggle() },
-            onSeek = { player.seekTo(it) },
-            onPrevious = { player.previous() },
-            onNext = { player.next() },
-            onOpenQueue = { showQueue = true },
-            onQualityChange = { quality ->
-                settings.preferredAudioQuality = quality
-                player.setQuality(quality)
-            },
-            onCycleRepeat = { player.cycleRepeatMode() },
-            onCollapse = { showNowPlaying = false },
-            lyricStyle = lyricStyle,
-            lyricLines = filteredLyricLines
-        )
+        // 展开播放页：跟 Minibar 共用同一条 expansionFraction 驱动交叉淡入淡出 + 从底部
+        // 升起，不是固定时长的转场——进度由拖动或点击触发的弹簧动画连续给出，手指拖到哪
+        // 屏幕就跟到哪。fraction 完全为 0 且逻辑状态也是收起时才跳过渲染，省一次合成。
+        if (expansionFraction.value > 0f || sheetTarget == SheetTarget.EXPANDED) {
+            Box(
+                modifier =
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        val fraction = expansionFraction.value
+                        alpha = fraction.coerceIn(0f, 1f)
+                        translationY = (1f - fraction) * dragExtentPx
+                    }
+            ) {
+                NowPlayingScreen(
+                    state = playerState,
+                    onToggle = { player.toggle() },
+                    onSeek = { player.seekTo(it) },
+                    onPrevious = { player.previous() },
+                    onNext = { player.next() },
+                    onOpenQueue = { showQueue = true },
+                    onQualityChange = { quality ->
+                        settings.preferredAudioQuality = quality
+                        player.setQuality(quality)
+                    },
+                    onCycleRepeat = { player.cycleRepeatMode() },
+                    onCollapse = { collapseSheet() },
+                    lyricStyle = lyricStyle,
+                    lyricLines = filteredLyricLines
+                )
+            }
+        }
     }
 
     // 播放队列面板（底部弹出，自带手势下拉关闭 + 返回键关闭，不用套 AnimatedVisibility/BackHandler）
