@@ -1,7 +1,7 @@
 package top.yunov.neteasy.player
 
 import top.yunov.neteasy.data.NcmRepository
-import top.yunov.neteasy.data.Song
+import top.yunov.neteasy.data.model.Song
 
 /** Song → PlayerController.PlayerSong（拼接歌手名，带上这首歌实际存在的音质档位） */
 fun Song.toPlayerSong(): PlayerController.PlayerSong =

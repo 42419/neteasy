@@ -1,4 +1,4 @@
-package top.yunov.neteasy.ui
+package top.yunov.neteasy.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -51,8 +51,8 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.NcmRepository
-import top.yunov.neteasy.data.UserDetail
-import top.yunov.neteasy.data.thumbnail
+import top.yunov.neteasy.data.model.UserDetail
+import top.yunov.neteasy.data.model.thumbnail
 
 /**
  * 用户详情页（从「我的」页点头像/个人信息进入）：

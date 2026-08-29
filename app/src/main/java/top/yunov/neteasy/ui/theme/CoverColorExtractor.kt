@@ -9,7 +9,7 @@ import coil.imageLoader
 import coil.request.ImageRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import top.yunov.neteasy.data.thumbnail
+import top.yunov.neteasy.data.model.thumbnail
 
 /**
  * 从歌曲封面 URL 提取一个「种子色」，喂给 material-kolor 生成整套 M3 动态配色——

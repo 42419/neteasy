@@ -4,7 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import top.yunov.neteasy.ui.UserDetailScreen
+import top.yunov.neteasy.ui.screens.UserDetailScreen
 import top.yunov.neteasy.ui.theme.NeteasyThemedScreen
 
 /**

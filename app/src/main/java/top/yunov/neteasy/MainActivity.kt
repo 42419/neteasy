@@ -38,11 +38,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import top.yunov.neteasy.data.SettingsStore
 import top.yunov.neteasy.data.ThemeMode
-import top.yunov.neteasy.ui.HomeScreen
-import top.yunov.neteasy.ui.MainNavigationBar
-import top.yunov.neteasy.ui.NavState
-import top.yunov.neteasy.ui.PlayerAwareContent
-import top.yunov.neteasy.ui.ProfileScreen
+import top.yunov.neteasy.ui.screens.HomeScreen
+import top.yunov.neteasy.ui.components.MainNavigationBar
+import top.yunov.neteasy.ui.components.NavState
+import top.yunov.neteasy.ui.player.PlayerAwareContent
+import top.yunov.neteasy.ui.screens.ProfileScreen
 import top.yunov.neteasy.ui.theme.ExpressiveMotion
 import top.yunov.neteasy.ui.theme.NeteasyTheme
 

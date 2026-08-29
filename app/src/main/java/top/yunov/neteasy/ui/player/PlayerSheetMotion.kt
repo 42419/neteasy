@@ -1,4 +1,4 @@
-package top.yunov.neteasy.ui
+package top.yunov.neteasy.ui.player
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.ui.util.lerp

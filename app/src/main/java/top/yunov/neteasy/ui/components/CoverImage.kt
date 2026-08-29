@@ -1,4 +1,4 @@
-package top.yunov.neteasy.ui
+package top.yunov.neteasy.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box

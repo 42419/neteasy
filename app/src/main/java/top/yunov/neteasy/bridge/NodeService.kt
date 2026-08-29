@@ -1,4 +1,4 @@
-package top.yunov.neteasy
+package top.yunov.neteasy.bridge
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -15,6 +15,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import java.io.File
 import java.io.FileOutputStream
+import top.yunov.neteasy.NodeJS
 
 /**
  * 前台服务：运行内嵌的 Node.js 后端（nodejs-mobile + api-enhanced）。

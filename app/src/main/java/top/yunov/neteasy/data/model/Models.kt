@@ -1,7 +1,8 @@
-package top.yunov.neteasy.data
+package top.yunov.neteasy.data.model
 
 import org.json.JSONArray
 import org.json.JSONObject
+import top.yunov.neteasy.data.AudioQuality
 
 /**
  * 网易云图片 CDN 支持在链接后加 `?param=宽y高` 直接拿服务端裁好的缩略图；

@@ -1,4 +1,4 @@
-package top.yunov.neteasy.ui
+package top.yunov.neteasy.ui.screens
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -52,10 +52,10 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import top.yunov.neteasy.data.Banner
+import top.yunov.neteasy.data.model.Banner
 import top.yunov.neteasy.data.NcmRepository
-import top.yunov.neteasy.data.Playlist
-import top.yunov.neteasy.data.thumbnail
+import top.yunov.neteasy.data.model.Playlist
+import top.yunov.neteasy.data.model.thumbnail
 import top.yunov.neteasy.ui.theme.ExpressiveMotion
 
 /**

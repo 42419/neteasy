@@ -1,4 +1,4 @@
-package top.yunov.neteasy.ui
+package top.yunov.neteasy.ui.screens
 
 import android.util.Base64
 import androidx.compose.foundation.Image

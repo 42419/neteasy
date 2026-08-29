@@ -1,4 +1,4 @@
-package top.yunov.neteasy.ui
+package top.yunov.neteasy.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,9 +45,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.NcmRepository
-import top.yunov.neteasy.data.Playlist
-import top.yunov.neteasy.data.Song
-import top.yunov.neteasy.data.thumbnail
+import top.yunov.neteasy.data.model.Playlist
+import top.yunov.neteasy.data.model.Song
+import top.yunov.neteasy.data.model.thumbnail
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.toPlayerSong
 import top.yunov.neteasy.ui.theme.ButtonShape

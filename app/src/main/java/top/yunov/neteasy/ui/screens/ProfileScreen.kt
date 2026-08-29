@@ -1,4 +1,4 @@
-package top.yunov.neteasy.ui
+package top.yunov.neteasy.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -48,8 +48,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.CookieStore
 import top.yunov.neteasy.data.NcmRepository
-import top.yunov.neteasy.data.Playlist
-import top.yunov.neteasy.data.thumbnail
+import top.yunov.neteasy.data.model.Playlist
+import top.yunov.neteasy.data.model.thumbnail
 import top.yunov.neteasy.ui.theme.ButtonShape
 
 /**

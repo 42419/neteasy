@@ -4,8 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import top.yunov.neteasy.ui.PlayerAwareContent
-import top.yunov.neteasy.ui.PlaylistScreen
+import top.yunov.neteasy.ui.player.PlayerAwareContent
+import top.yunov.neteasy.ui.screens.PlaylistScreen
 import top.yunov.neteasy.ui.theme.NeteasyThemedScreen
 
 /**

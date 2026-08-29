@@ -86,7 +86,7 @@
 
         <!-- 内嵌 Node.js 后端前台服务 -->
         <service
-            android:name=".NodeService"
+            android:name=".bridge.NodeService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 

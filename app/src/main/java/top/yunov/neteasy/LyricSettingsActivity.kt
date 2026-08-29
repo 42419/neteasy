@@ -9,7 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import top.yunov.neteasy.data.SettingsStore
-import top.yunov.neteasy.ui.LyricSettingsScreen
+import top.yunov.neteasy.ui.screens.LyricSettingsScreen
 import top.yunov.neteasy.ui.theme.NeteasyThemedScreen
 
 /**

@@ -1,4 +1,4 @@
-package top.yunov.neteasy.ui
+package top.yunov.neteasy.ui.player
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -45,9 +45,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import top.yunov.neteasy.data.AudioQuality
-import top.yunov.neteasy.data.thumbnail
+import top.yunov.neteasy.data.model.thumbnail
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.RepeatMode
+import top.yunov.neteasy.ui.components.CoverImage
+import top.yunov.neteasy.ui.components.Pause
+import top.yunov.neteasy.ui.components.QualityChip
+import top.yunov.neteasy.ui.components.SeekWaveProgressBar
+import top.yunov.neteasy.ui.components.formatTime
+import top.yunov.neteasy.ui.components.rememberSmoothPositionMs
 import top.yunov.neteasy.ui.theme.ExpressiveMotion
 import top.met6.amll.AppleMusicLyricPlayer
 import top.met6.amll.AppleMusicLyricPlayerStyle

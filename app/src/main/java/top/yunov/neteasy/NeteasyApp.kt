@@ -5,6 +5,7 @@ import android.content.Intent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import top.yunov.neteasy.bridge.NodeService
 import top.yunov.neteasy.data.ApiClient
 import top.yunov.neteasy.data.LyricRepository
 import top.yunov.neteasy.data.NcmRepository

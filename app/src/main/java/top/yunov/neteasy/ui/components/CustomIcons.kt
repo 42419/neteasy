@@ -1,4 +1,4 @@
-package top.yunov.neteasy.ui
+package top.yunov.neteasy.ui.components
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.materialIcon

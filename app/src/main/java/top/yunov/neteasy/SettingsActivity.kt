@@ -26,7 +26,7 @@ import top.yunov.neteasy.data.ThemeMode
 import top.yunov.neteasy.data.UpdateChecker
 import top.yunov.neteasy.data.UpdateUiState
 import top.yunov.neteasy.data.isNewerVersion
-import top.yunov.neteasy.ui.SettingsScreen
+import top.yunov.neteasy.ui.screens.SettingsScreen
 import top.yunov.neteasy.ui.theme.NeteasyTheme
 
 /**

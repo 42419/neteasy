@@ -17,7 +17,7 @@ import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.yunov.neteasy.ui.StorageScreen
+import top.yunov.neteasy.ui.screens.StorageScreen
 import top.yunov.neteasy.ui.theme.NeteasyThemedScreen
 
 /**

@@ -1,4 +1,4 @@
-package top.yunov.neteasy.ui
+package top.yunov.neteasy.ui.screens
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -68,8 +68,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.SearchHistoryStore
-import top.yunov.neteasy.data.Song
-import top.yunov.neteasy.data.thumbnail
+import top.yunov.neteasy.data.model.Song
+import top.yunov.neteasy.data.model.thumbnail
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.toPlayerSong
 import top.yunov.neteasy.ui.theme.ButtonShape

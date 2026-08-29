@@ -1,4 +1,4 @@
-package top.yunov.neteasy.ui
+package top.yunov.neteasy.ui.player
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
@@ -39,6 +39,8 @@ import top.met6.amll.AppleMusicLyricPlayerStyle
 import top.yunov.neteasy.data.SettingsStore
 import top.yunov.neteasy.data.filteredForDisplay
 import top.yunov.neteasy.player.PlayerController
+import top.yunov.neteasy.ui.components.PlayerMinibar
+import top.yunov.neteasy.ui.components.QueueSheet
 
 /**
  * Minibar ↔ 展开播放页的“逻辑目标状态”，跟连续的拖动进度分开管：拖动过程中进度是
