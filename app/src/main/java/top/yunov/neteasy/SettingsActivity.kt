@@ -10,6 +10,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -73,7 +74,21 @@ class SettingsActivity : ComponentActivity() {
                     ThemeMode.LIGHT -> false
                     ThemeMode.DARK -> true
                 }
-            NeteasyTheme(darkTheme = darkTheme, dynamicColor = dynamicColor) {
+            // 跟其他子页（LyricSettingsActivity/StorageActivity 等）用的 NeteasyThemedScreen
+            // 是同一套逻辑：followCoverColor 开着时从 CoverThemeController 拿封面取色种子传给
+            // NeteasyTheme。设置页之前漏接了这个（只传了 darkTheme/dynamicColor），导致封面
+            // 取色开关本身在设置页里是生效的，但设置页自己却看不出跟着变色——现在补上。
+            // 不能直接用 NeteasyThemedScreen 包一层，因为这里 followCoverColor 是本地
+            // mutableState（改了要立即生效，不用等下次重建 Activity），跟 NeteasyThemedScreen
+            // 内部自己重新读一遍 SettingsStore 的写法对不上，所以手动展开这段逻辑。
+            val coverSeedColor =
+                if (followCoverColor) {
+                    val seed by app.coverThemeController.seedColor.collectAsState()
+                    seed
+                } else {
+                    null
+                }
+            NeteasyTheme(darkTheme = darkTheme, dynamicColor = dynamicColor, coverSeedColor = coverSeedColor) {
                 SettingsScreen(
                     themeMode = themeMode,
                     onThemeModeChange = {

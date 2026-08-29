@@ -1,7 +1,6 @@
 package top.yunov.neteasy.ui
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -38,7 +37,6 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -80,14 +78,16 @@ fun PlayerMinibar(
     modifier: Modifier = Modifier
 ) {
     val song = state.song ?: return
-    val glassTint = MaterialTheme.colorScheme.surfaceContainerHigh
     val cardShape = RoundedCornerShape(24.dp)
 
-    // 磨砂玻璃背景：曾经想做“卡片背后内容真实模糊”（haze 库），但那条路在 LazyColumn
-    // 当模糊源时有个已知未修复的 bug（渲染出来是一坨方方正正的糊斑，见上次修复记录），
-    // 换成更朴素也更稳的做法：拿当前播放歌曲的封面整张拉伸铺满、原生 Modifier.blur() 
-    // 模糊一下当卡片背景，不依赖任何第三方库。跟“正在播的这首歌”强关联，
-    // Spotify / Apple Music 的迷你播放条也是这个思路，观感上不比真背景模糊差。
+    // 纯色块背景，跟随全局动态取色（MaterialTheme.colorScheme 本身就是由封面取色驱动的，
+    // 见 NeteasyTheme/CoverThemeController；这里不用额外去拿封面颜色，直接用主题色即可，
+    // 「跟随封面取色」开关在设置页关掉的话，这里也会自动跟着变回默认配色，行为统一）。
+    // 背景模糊这条路走过两轮都不理想：Haze 在 LazyColumn 当模糊源时有个已知未修复的
+    // 渲染 bug（#865，边缘/文字不模糊，糊出方块痕迹）；换 Cloudy 之后虽然是真背景模糊，
+    // 但实测颜色不对+有杆状痕迹，而且列表滚动时会因为持续重新采样背景整体卡顿。
+    // 两条路子都不划算，改成简单可靠的纯色块——没有实时采样/合成开销，也没有渲染 bug
+    // 空间，观感上跟着每首歌的封面色调换，同样是「跟这首歌的封面联动」的效果。
     Surface(
         onClick = onExpand,
         modifier =
@@ -95,27 +95,10 @@ fun PlayerMinibar(
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp),
         shape = cardShape,
-        color = Color.Transparent,
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f),
         shadowElevation = 6.dp
     ) {
         Box {
-            // Modifier.blur() 底层是 RenderEffect，只有 Android 12（API 31）+ 才生效；
-            // minSdk 29 的老设备上这行相当于没写，图片正常显示只是不模糊，不会崩，
-            // 优雅降级，不用额外判断版本。
-            CoverImage(
-                url = song.picUrl.thumbnail(160),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize().blur(28.dp),
-                contentScale = ContentScale.Crop
-            )
-            // 模糊完的封面亮度/色调不可控（有的封面很暗有的很花花绿绿），叠一层半透明
-            // 卡片底色兜底文字对比度和整体基调统一，不会出现文字糊在图片上看不清的情况
-            Box(
-                modifier =
-                Modifier
-                    .matchParentSize()
-                    .background(glassTint.copy(alpha = 0.55f))
-            )
             Row(
                 modifier = Modifier.fillMaxWidth().padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically

@@ -233,8 +233,8 @@ fun PlayerAwareContent(
             )
         }
 
-    // 悬浮卡片自己拿当前歌曲封面做模糊背景（见 PlayerMinibar），不需要再从这层内容
-    // 捕获背景做“真实内容模糊”了，content() 就是普通内容，不用额外包一层
+    // 悬浮卡片背景是跟随全局动态取色的纯色块（见 PlayerMinibar），不需要再从这层
+    // 内容捕获背景做真实模糊了，content() 就是普通内容，不用额外包一层
     Box(modifier = modifier.fillMaxSize()) {
         content()
 
