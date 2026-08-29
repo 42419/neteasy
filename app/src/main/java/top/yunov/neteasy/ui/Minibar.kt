@@ -95,7 +95,7 @@ fun PlayerMinibar(
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp),
         shape = cardShape,
-        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f),
+        color = MaterialTheme.colorScheme.secondaryContainer,
         shadowElevation = 6.dp
     ) {
         Box {

@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -23,14 +24,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Lyrics
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -57,13 +62,12 @@ import top.yunov.neteasy.data.ThemeMode
 import top.yunov.neteasy.data.UpdateUiState
 
 /**
- * 设置页（MD3 Expressive）：
- * - 深色模式：跟随系统 / 浅色 / 深色（三选一 SegmentedButton）
- * - 动态取色：Material You 壁纸色开关（仅 Android 12+ 显示）
- * - 封面取色：跟随当前播放歌曲封面变化的开关，优先级高于动态取色
- * - 存储空间：点进去是独立页面（StorageScreen），参考网易云官方存储空间页样式，
- *   这里只是一个跳转入口
- * - 检查更新：对比 GitHub Releases 最新版本，有更新弹窗展示更新内容 + 下载安装
+ * 设置页（MD3 Expressive）：按功能分了三类，不再是七八张卡片平铺一遍：
+ * - 外观：深色模式（跟随系统/浅色/深色）、动态取色（Material You 壁纸色，仅
+ *   Android 12+ 显示）、封面取色（跟随当前播放歌曲封面，优先级高于动态取色）
+ * - 播放：默认播放音质、歌词渲染细节（跳转独立页面）
+ * - 存储与更新：存储空间管理（跳转独立页面，参考网易云官方样式）、检查更新
+ *   （对比 GitHub Releases，有更新弹窗展示更新内容 + 下载安装）
  * 所有选择经 MainActivity 提升到主题层，切换即时生效并持久化。
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -118,48 +122,34 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 外观卡片：深色模式三选一
-            Column(
-                modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .clip(MaterialTheme.shapes.extraLarge)
-                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            ) {
-                SettingRow(
-                    icon = Icons.Filled.DarkMode,
-                    title = "深色模式",
-                    subtitle = "当前：${themeMode.label()}"
-                )
-                SingleChoiceSegmentedButtonRow(
-                    modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .padding(bottom = 16.dp)
-                ) {
-                    themeModeOptions.forEachIndexed { index, (mode, label) ->
-                        SegmentedButton(
-                            selected = themeMode == mode,
-                            onClick = { onThemeModeChange(mode) },
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = themeModeOptions.size),
-                            label = { Text(label) }
-                        )
+            // ---- 外观：深色模式 / 动态取色 / 封面取色 ----
+            SettingsCategory(title = "外观") {
+                Column {
+                    SettingRow(
+                        icon = Icons.Filled.DarkMode,
+                        title = "深色模式",
+                        subtitle = "当前：${themeMode.label()}"
+                    )
+                    SingleChoiceSegmentedButtonRow(
+                        modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .padding(bottom = 16.dp)
+                    ) {
+                        themeModeOptions.forEachIndexed { index, (mode, label) ->
+                            SegmentedButton(
+                                selected = themeMode == mode,
+                                onClick = { onThemeModeChange(mode) },
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = themeModeOptions.size),
+                                label = { Text(label) }
+                            )
+                        }
                     }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // 动态取色：仅 Android 12+ 支持，低版本隐藏该设置
-            if (dynamicColorSupported) {
-                Column(
-                    modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(MaterialTheme.shapes.extraLarge)
-                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                ) {
+                // 动态取色：仅 Android 12+ 支持，低版本隐藏该设置
+                if (dynamicColorSupported) {
+                    SettingsRowDivider()
                     SettingRow(
                         icon = Icons.Filled.Palette,
                         title = "动态取色",
@@ -168,19 +158,8 @@ fun SettingsScreen(
                         Switch(checked = dynamicColor, onCheckedChange = onDynamicColorChange)
                     }
                 }
-                Spacer(modifier = Modifier.height(20.dp))
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // 封面取色：跟着当前播放歌曲的封面变，优先级比动态取色高（开启后忽略动态取色）
-            Column(
-                modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .clip(MaterialTheme.shapes.extraLarge)
-                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            ) {
+                // 封面取色：跟着当前播放歌曲的封面变，优先级比动态取色高（开启后忽略动态取色）
+                SettingsRowDivider()
                 SettingRow(
                     icon = Icons.Filled.Palette,
                     title = "封面取色",
@@ -189,32 +168,23 @@ fun SettingsScreen(
                     Switch(checked = followCoverColor, onCheckedChange = onFollowCoverColorChange)
                 }
             }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
             Text(
                 "封面取色开启后会覆盖动态取色\n关闭动态取色后使用网易云品牌红配色\n动态取色需 Android 12 及以上",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
-            // 存储空间：跳转到独立页面，参考网易云官方存储空间页样式
-            Column(
-                modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .clip(MaterialTheme.shapes.extraLarge)
-                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            ) {
+            // ---- 播放：默认音质 / 歌词渲染细节 ----
+            SettingsCategory(title = "播放") {
                 SettingRow(
-                    icon = Icons.Filled.Storage,
-                    title = "存储空间",
-                    subtitle = "查看并清理占用的存储空间",
-                    modifier = Modifier.clickable(onClick = onOpenStorage)
+                    icon = Icons.Filled.GraphicEq,
+                    title = "默认播放音质",
+                    subtitle = "当前：${defaultQuality.label}",
+                    modifier = Modifier.clickable { qualityDialog = true }
                 ) {
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowForward,
@@ -222,18 +192,7 @@ fun SettingsScreen(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // 歌词渲染细节：对齐位置/模糊/翻译音译显隐/滚动手感，跳转到独立页面
-            Column(
-                modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .clip(MaterialTheme.shapes.extraLarge)
-                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            ) {
+                SettingsRowDivider()
                 SettingRow(
                     icon = Icons.Filled.Lyrics,
                     title = "歌词",
@@ -248,22 +207,15 @@ fun SettingsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
-            // 默认播放音质：点入选一首作为“新开始播放歌曲时优先尝试”的档位；
-            // 某首歌没有该档位时会在播放时自动降级为邻近档位（见 PlayerController.effectiveQuality）
-            Column(
-                modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .clip(MaterialTheme.shapes.extraLarge)
-                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            ) {
+            // ---- 存储与更新 ----
+            SettingsCategory(title = "存储与更新") {
                 SettingRow(
-                    icon = Icons.Filled.GraphicEq,
-                    title = "默认播放音质",
-                    subtitle = "当前：${defaultQuality.label}",
-                    modifier = Modifier.clickable { qualityDialog = true }
+                    icon = Icons.Filled.Storage,
+                    title = "存储空间",
+                    subtitle = "查看并清理占用的存储空间",
+                    modifier = Modifier.clickable(onClick = onOpenStorage)
                 ) {
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowForward,
@@ -271,18 +223,7 @@ fun SettingsScreen(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // 检查更新：对比 GitHub Releases 最新版本
-            Column(
-                modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .clip(MaterialTheme.shapes.extraLarge)
-                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            ) {
+                SettingsRowDivider()
                 val checking = updateState == UpdateUiState.Checking
                 SettingRow(
                     icon = Icons.Filled.Refresh,
@@ -445,6 +386,34 @@ private fun UpdateDialog(
                 confirmButton = { TextButton(onClick = onDismiss) { Text("知道了") } }
             )
     }
+}
+
+/** 设置分类：分类名（强调色小标题）+ 一张卡片装下这一类里的所有设置项。 */
+@Composable
+private fun SettingsCategory(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Text(
+        title,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
+    )
+    Column(
+        modifier =
+        Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.extraLarge)
+            .background(MaterialTheme.colorScheme.surfaceContainerLow),
+        content = content
+    )
+}
+
+/** 同一张卡片里相邻设置项之间的分隔线，跟图标对齐（左边空出图标+间距的宽度）。 */
+@Composable
+private fun SettingsRowDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 72.dp),
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+    )
 }
 
 /** 深色模式三选项的唯一数据源：段按钮展示 + 副标题“当前：”共用 */
