@@ -30,7 +30,10 @@ import top.yunov.neteasy.data.model.thumbnail
 import top.yunov.neteasy.player.PlayerController
 
 /**
- * 播放队列面板：展示当前播放队列全部歌曲，点某一首直接跳转播放，正在播放的一项高亮。
+ * 播放队列面板：展示一份歌曲列表，点某一首直接跳转播放，正在播放的一项高亮。
+ * 除了「当前播放队列」，也复用给「每日推荐」这类先看列表、点哪首播哪首的场景——
+ * [title] 换个文案、[onPlayAll] 传非 null 就会多一行「播放全部」，
+ * 不用为每种列表场景单独写一个几乎一样的底部面板。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,15 +41,40 @@ fun QueueSheet(
     queue: List<PlayerController.PlayerSong>,
     currentIndex: Int,
     onSelect: (Int) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    title: String = "播放队列",
+    onPlayAll: (() -> Unit)? = null
 ) {
     val sheetState = rememberModalBottomSheetState()
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Text(
-            "播放队列 · ${queue.size} 首",
+            "$title · ${queue.size} 首",
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
         )
+        if (onPlayAll != null) {
+            Row(
+                modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onPlayAll)
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Filled.PlayArrow,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    "播放全部",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 10.dp)
+                )
+            }
+        }
         LazyColumn(
             modifier =
             Modifier

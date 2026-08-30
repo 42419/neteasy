@@ -7,7 +7,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -61,6 +60,7 @@ import top.yunov.neteasy.data.model.Song
 import top.yunov.neteasy.data.model.thumbnail
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.toPlayerSong
+import top.yunov.neteasy.ui.components.QueueSheet
 import top.yunov.neteasy.ui.theme.ExpressiveMotion
 
 /**
@@ -94,6 +94,7 @@ fun HomeScreen(
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var retryKey by remember { mutableIntStateOf(0) }
+    var showDailyRecommend by remember { mutableStateOf(false) }
 
     LaunchedEffect(retryKey) {
         loading = true
@@ -167,7 +168,9 @@ fun HomeScreen(
                     item(span = { GridItemSpan(maxLineSpan) }) { BannerStrip(banners) }
                 }
                 // 快捷入口：每日推荐 / 排行榜——网易云首页最上面那排彩色卡片的简化版，
-                // 只留了两个真正有数据支撑的入口，点击直接滚到对应板块（不用跳新页面）
+                // 只留了两个真正有数据支撑的入口。之前点「每日推荐」直接开始播放，
+                // 跟网易云的实际交互不一样（应该先看列表再选，不是点进去就唐突开始播放）——
+                // 改成打开底部列表面板，跟 QueueSheet 是同一套组件（详见 QueueSheet.kt 改动）。
                 if (recommendSongs.isNotEmpty() || toplist.isNotEmpty()) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
@@ -176,9 +179,7 @@ fun HomeScreen(
                                     title = "每日推荐",
                                     subtitle = "根据音乐口味生成",
                                     colors = listOf(Color(0xFFFF8A65), Color(0xFFFF5252)),
-                                    onClick = {
-                                        player.playQueue(recommendSongs.map { it.toPlayerSong() }, 0)
-                                    },
+                                    onClick = { showDailyRecommend = true },
                                     modifier = Modifier.weight(1f)
                                 )
                             }
@@ -248,6 +249,23 @@ fun HomeScreen(
                 }
             }
     }
+
+    if (showDailyRecommend) {
+        QueueSheet(
+            queue = recommendSongs.map { it.toPlayerSong() },
+            currentIndex = -1,
+            onSelect = { index ->
+                player.playQueue(recommendSongs.map { it.toPlayerSong() }, index)
+                showDailyRecommend = false
+            },
+            onDismiss = { showDailyRecommend = false },
+            title = "每日推荐",
+            onPlayAll = {
+                player.playQueue(recommendSongs.map { it.toPlayerSong() }, 0)
+                showDailyRecommend = false
+            }
+        )
+    }
 }
 
 @Composable
@@ -299,27 +317,28 @@ private fun SearchEntryBar(onClick: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
-/** Banner 横向滑动（LazyRow + 固定宽度，适配不同屏宽） */
+/**
+ * Banner 横向滑动：露一点下一张（peek carousel），提示还能往右划——参考截图里
+ * 网易云首页 Banner 只显示当前 + 下一张露边，不是每张都占满整行。
+ * fillParentMaxWidth() 比 BoxWithConstraints 便宜（不用额外一次子组合去量宽度）。
+ */
 @Composable
 private fun BannerStrip(banners: List<Banner>) {
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val bannerWidth = maxWidth // 网格已有左右 16dp padding
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 0.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            listItems(banners.take(5), key = { it.picUrl }) { banner ->
-                AsyncImage(
-                    model = banner.picUrl.thumbnail(1200, 600),
-                    contentDescription = banner.typeTitle,
-                    modifier =
-                    Modifier
-                        .width(bannerWidth)
-                        .aspectRatio(2f)
-                        .clip(MaterialTheme.shapes.extraLarge),
-                    contentScale = ContentScale.Crop
-                )
-            }
+    LazyRow(
+        contentPadding = PaddingValues(end = 40.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        listItems(banners.take(5), key = { it.picUrl }) { banner ->
+            AsyncImage(
+                model = banner.picUrl.thumbnail(1200, 600),
+                contentDescription = banner.typeTitle,
+                modifier =
+                Modifier
+                    .fillParentMaxWidth(0.86f)
+                    .aspectRatio(2f)
+                    .clip(MaterialTheme.shapes.extraLarge),
+                contentScale = ContentScale.Crop
+            )
         }
     }
 }

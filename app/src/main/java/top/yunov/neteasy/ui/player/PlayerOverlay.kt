@@ -164,6 +164,10 @@ fun PlayerAwareContent(
                 initialVelocity = initialVelocity,
                 animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium)
             )
+            // 弹簧衰减到目标值附近就算“完成”，不保证精确等于 1f；这里强制吸附一下，
+            // 纯粹是为了跟 collapseSheet() 那边的 snapTo(0f) 对称，实际上 1f 这一侧
+            // 没有依赖精确相等的判断逻辑，加上只是保险。
+            expansionFraction.snapTo(1f)
         }
     }
 
@@ -183,6 +187,14 @@ fun PlayerAwareContent(
                 initialVelocity = initialVelocity,
                 animationSpec = spring(dampingRatio = collapseSpringDamping(currentFraction), stiffness = Spring.StiffnessLow)
             )
+            // 关键：弹簧衰减是渐近的，理论上可能永远到不了精确的 0f（残留极小的浮点误差）。
+            // 下面渲染 NowPlayingScreen 靠的是 expansionFraction.value > 0f 这个判断，
+            // 一旦卡在比如 0.0000003f 这种值上，NowPlayingScreen 会一直挂载在组合树里
+            // 不被移除——它内部歌词渲染器的 withFrameNanos 循环会跟着永远跑下去，
+            // 每一帧都占用主线程，不管当前显示的是哪个页面，表现就是全局卡顿。
+            // 强制吸附到精确 0f，保证这个条件最终一定会变成 false，NowPlayingScreen
+            // 真正从组合树里卸载，循环才会真正停掉。
+            expansionFraction.snapTo(0f)
         }
     }
 
@@ -273,7 +285,7 @@ fun PlayerAwareContent(
         // 展开播放页：跟 Minibar 共用同一条 expansionFraction 驱动交叉淡入淡出 + 从底部
         // 升起，不是固定时长的转场——进度由拖动或点击触发的弹簧动画连续给出，手指拖到哪
         // 屏幕就跟到哪。fraction 完全为 0 且逻辑状态也是收起时才跳过渲染，省一次合成。
-        if (expansionFraction.value > 0f || sheetTarget == SheetTarget.EXPANDED) {
+        if (expansionFraction.value > 0.001f || sheetTarget == SheetTarget.EXPANDED) {
             Box(
                 modifier =
                 Modifier
