@@ -25,6 +25,16 @@ class NcmRepository(private val api: ApiClient) {
     suspend fun personalized(limit: Int = 20): List<Playlist> =
         JsonParser.parsePersonalized(api.get("/personalized", mapOf("limit" to "$limit")))
 
+    /** 官方榜单列表（ACG榜/民谣榜/热歌榜等），每个榜单的 id 就是一个可以直接当歌单打开的 id。 */
+    suspend fun toplist(): List<Playlist> = JsonParser.parseToplist(api.get("/toplist", emptyMap()))
+
+    /**
+     * 每日推荐歌曲。需要登录态；未登录时接口返回错误结构，[JsonParser.parseRecommendSongs]
+     * 会拿到空列表，调用方按“没有这个板块”处理，不额外弹错误——不强制要求登录才能看首页。
+     */
+    suspend fun recommendSongs(): List<Song> =
+        JsonParser.parseRecommendSongs(api.get("/recommend/songs", emptyMap()))
+
     suspend fun playlistDetail(id: Long): Playlist? = JsonParser.parsePlaylistDetail(
         api.get(
             "/playlist/detail",

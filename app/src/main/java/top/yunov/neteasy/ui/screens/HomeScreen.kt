@@ -44,6 +44,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,24 +57,40 @@ import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.model.Banner
 import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.model.Playlist
+import top.yunov.neteasy.data.model.Song
 import top.yunov.neteasy.data.model.thumbnail
+import top.yunov.neteasy.player.PlayerController
+import top.yunov.neteasy.player.toPlayerSong
 import top.yunov.neteasy.ui.theme.ExpressiveMotion
 
 /**
- * 首页：MD3 Expressive 大标题 + Banner 轮播 + 推荐歌单卡片。
- * 数据来自本地 Node 后端 /banner 与 /personalized。
- * 冷启动时 Node 可能未就绪：失败后自动重试 5 次（间隔 2s）。
+ * 首页：MD3 Expressive 大标题 + Banner 轮播 + 快捷入口 + 推荐歌单 + 排行榜 + 每日推荐歌曲。
+ * 参考网易云首页实际布局做的取舍（详见各板块注释里标的接口来源）：
+ * - Banner、推荐歌单、排行榜、每日推荐歌曲：api-enhanced 有对应接口，做了
+ * - 雷达歌单：点进去本质就是「每日推荐」那套 UI（播放全部 + 歌曲列表），跟每日推荐
+ *   歌曲是同一个数据源（/recommend/songs），不用另外单独接一套
+ * - 听过的 X 为你推荐 / 城市热门歌曲 / 漫游 / 艺人定制歌单：网易云内部的个性化推荐
+ *   算法，api-enhanced 没有对应接口，做不了
+ * - 播客节目推荐：点进去是完全独立的「播客」大 Tab，数据模型和播放链路都要重新搭，
+ *   工作量远超首页改版本身，且用户几乎不用，不做
+ *
+ * 数据来自本地 Node 后端 /banner /personalized /toplist /recommend/songs。
+ * 冷启动时 Node 可能未就绪：失败后自动重试 5 次（间隔 2s）。/recommend/songs
+ * 需要登录态，未登录时该板块直接不显示，不影响其他板块。
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HomeScreen(
     repository: NcmRepository,
+    player: PlayerController,
     onOpenPlaylist: (Long) -> Unit,
     onOpenSearch: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var banners by remember { mutableStateOf<List<Banner>>(emptyList()) }
     var playlists by remember { mutableStateOf<List<Playlist>>(emptyList()) }
+    var toplist by remember { mutableStateOf<List<Playlist>>(emptyList()) }
+    var recommendSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var retryKey by remember { mutableIntStateOf(0) }
@@ -91,6 +109,13 @@ fun HomeScreen(
                 banners = b
                 playlists = p
                 loading = false
+                // 排行榜、每日推荐歌曲不阻塞首页主内容——单独拉，失败了对应板块直接不显示，
+                // 不影响banner/推荐歌单已经加载出来的部分（也不用重试逻辑，这两个不是冷启动
+                // 关键路径，偶尔失败下次进首页再拉就行）。
+                withContext(Dispatchers.IO) {
+                    runCatching { toplist = repository.toplist() }
+                    runCatching { recommendSongs = repository.recommendSongs() }
+                }
                 return@LaunchedEffect
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -141,6 +166,34 @@ fun HomeScreen(
                 if (banners.isNotEmpty()) {
                     item(span = { GridItemSpan(maxLineSpan) }) { BannerStrip(banners) }
                 }
+                // 快捷入口：每日推荐 / 排行榜——网易云首页最上面那排彩色卡片的简化版，
+                // 只留了两个真正有数据支撑的入口，点击直接滚到对应板块（不用跳新页面）
+                if (recommendSongs.isNotEmpty() || toplist.isNotEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                            if (recommendSongs.isNotEmpty()) {
+                                ShortcutCard(
+                                    title = "每日推荐",
+                                    subtitle = "根据音乐口味生成",
+                                    colors = listOf(Color(0xFFFF8A65), Color(0xFFFF5252)),
+                                    onClick = {
+                                        player.playQueue(recommendSongs.map { it.toPlayerSong() }, 0)
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            if (toplist.isNotEmpty()) {
+                                ShortcutCard(
+                                    title = "排行榜",
+                                    subtitle = "云音乐官方榜单",
+                                    colors = listOf(Color(0xFFFFB74D), Color(0xFFFF7043)),
+                                    onClick = { onOpenPlaylist(toplist.first().id) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                }
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
                         "推荐歌单",
@@ -150,6 +203,48 @@ fun HomeScreen(
                 }
                 gridItems(playlists, key = { it.id }) { playlist ->
                     PlaylistCard(playlist, onClick = { onOpenPlaylist(playlist.id) })
+                }
+                // 排行榜：/toplist 返回的每个榜单本身就是一个官方歌单，点击直接复用现有的
+                // 歌单详情页（onOpenPlaylist），不用另外做一个「榜单详情」页面
+                if (toplist.isNotEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Text(
+                            "排行榜",
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.padding(top = 10.dp)
+                        )
+                    }
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            listItems(toplist.take(10), key = { it.id }) { chart ->
+                                ChartCard(chart, onClick = { onOpenPlaylist(chart.id) })
+                            }
+                        }
+                    }
+                }
+                // 每日推荐歌曲：点一首直接从那首开始播放（整份推荐列表当队列），
+                // 跟网易云本身「点歌曲即播放，不用先进详情页」的操作习惯一致
+                if (recommendSongs.isNotEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Text(
+                            "每日推荐",
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.padding(top = 10.dp)
+                        )
+                    }
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            listItems(recommendSongs.take(15), key = { it.id }) { song ->
+                                RecommendSongCard(
+                                    song = song,
+                                    onClick = {
+                                        val index = recommendSongs.indexOf(song)
+                                        player.playQueue(recommendSongs.map { it.toPlayerSong() }, index)
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
             }
     }
@@ -229,6 +324,140 @@ private fun BannerStrip(banners: List<Banner>) {
     }
 }
 
+/** 快捷入口卡片：渐变色背景 + 大标题，对应网易云首页最上面那排彩色卡片。 */
+@Composable
+private fun ShortcutCard(
+    title: String,
+    subtitle: String,
+    colors: List<Color>,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.96f else 1f,
+        animationSpec = ExpressiveMotion.SpatialFast,
+        label = "shortcutCardScale"
+    )
+    Column(
+        modifier =
+        modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }.aspectRatio(1.8f)
+            .clip(MaterialTheme.shapes.large)
+            .background(Brush.linearGradient(colors))
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Bottom
+    ) {
+        Text(title, style = MaterialTheme.typography.titleMedium, color = Color.White)
+        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.85f))
+    }
+}
+
+/** 榜单卡片：横向滑动里的一张，没有专门配图就退回渐变底色，跟快捷入口视觉呼应。 */
+@Composable
+private fun ChartCard(chart: Playlist, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.96f else 1f,
+        animationSpec = ExpressiveMotion.SpatialFast,
+        label = "chartCardScale"
+    )
+    Box(
+        modifier =
+        Modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }.size(width = 140.dp, height = 140.dp)
+            .clip(MaterialTheme.shapes.large)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+    ) {
+        if (chart.coverUrl.isNotBlank()) {
+            AsyncImage(
+                model = chart.coverUrl.thumbnail(280),
+                contentDescription = chart.name,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(
+                modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary))
+                    )
+            )
+        }
+        Box(
+            modifier =
+            Modifier
+                .fillMaxSize()
+                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f))))
+        )
+        Text(
+            text = chart.name,
+            style = MaterialTheme.typography.titleSmall,
+            color = Color.White,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.align(Alignment.BottomStart).padding(12.dp)
+        )
+    }
+}
+
+/** 每日推荐歌曲卡片：小方封面 + 歌名/歌手，点击直接从这首开始播放整份推荐列表。 */
+@Composable
+private fun RecommendSongCard(song: Song, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.96f else 1f,
+        animationSpec = ExpressiveMotion.SpatialFast,
+        label = "recommendSongCardScale"
+    )
+    Column(
+        modifier =
+        Modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }.width(112.dp)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+    ) {
+        AsyncImage(
+            model = song.picUrl.thumbnail(224),
+            contentDescription = song.name,
+            modifier =
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(MaterialTheme.shapes.medium),
+            contentScale = ContentScale.Crop
+        )
+        Text(
+            text = song.name,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 6.dp)
+        )
+        Text(
+            text = song.artists.joinToString("/"),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
 /** 推荐歌单卡片：大圆角 + 按压弹性缩放 */
 @Composable
 private fun PlaylistCard(playlist: Playlist, onClick: () -> Unit) {
@@ -288,3 +517,4 @@ private fun formatCount(count: Long): String = when {
     count >= 10_000 -> "%.1f万".format(count / 10_000.0)
     else -> "$count"
 }
+

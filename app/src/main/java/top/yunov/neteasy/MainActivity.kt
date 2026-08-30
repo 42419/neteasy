@@ -204,6 +204,7 @@ private fun NcmApp(settings: SettingsStore) {
                 TabHost(visible = screen == Screen.HOME) {
                     HomeScreen(
                         repository = repository,
+                        player = player,
                         onOpenPlaylist = { id ->
                             context.startActivity(
                                 Intent(context, PlaylistActivity::class.java)

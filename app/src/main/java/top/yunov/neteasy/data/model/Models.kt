@@ -173,6 +173,37 @@ object JsonParser {
         }
     }
 
+    /** 榜单列表（/toplist）：每个榜单本质上就是一个官方维护的歌单，直接复用 Playlist。 */
+    fun parseToplist(root: JSONObject): List<Playlist> {
+        val arr = root.optJSONArray("list") ?: return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val id = o.optLong("id")
+            val name = o.optString("name")
+            if (id == 0L || name.isEmpty()) return@mapNotNull null
+            Playlist(
+                id = id,
+                name = name,
+                coverUrl = o.optString("coverImgUrl"),
+                playCount = o.optLong("playCount"),
+                trackCount = o.optInt("trackCount")
+            )
+        }
+    }
+
+    /**
+     * 每日推荐歌曲（/recommend/songs，data.dailySongs）。需要登录态 Cookie，
+     * 未登录会返回没有 data 字段的错误响应——这里直接返回空列表，调用方按“没有这个板块”处理，
+     * 不额外弹错误提示（首页其他板块不受影响）。
+     */
+    fun parseRecommendSongs(root: JSONObject): List<Song> {
+        val data = root.optJSONObject("data") ?: return emptyList()
+        val arr = data.optJSONArray("dailySongs") ?: return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            parseSong(arr.optJSONObject(i))
+        }
+    }
+
     /** 搜索结果的歌曲列表（result.songs，字段是精简版，没有封面也没有音质档位字段） */
     fun parseSearchSongs(root: JSONObject): List<Song> {
         val result = root.optJSONObject("result") ?: return emptyList()
