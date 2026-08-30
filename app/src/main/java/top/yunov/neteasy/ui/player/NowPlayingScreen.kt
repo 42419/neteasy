@@ -49,9 +49,15 @@ import top.yunov.neteasy.data.model.thumbnail
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.RepeatMode
 import top.yunov.neteasy.ui.components.CoverImage
+import top.yunov.neteasy.ui.components.ExpandMore
 import top.yunov.neteasy.ui.components.Pause
 import top.yunov.neteasy.ui.components.QualityChip
+import top.yunov.neteasy.ui.components.QueueMusic
+import top.yunov.neteasy.ui.components.Repeat
 import top.yunov.neteasy.ui.components.SeekWaveProgressBar
+import top.yunov.neteasy.ui.components.SkipNext
+import top.yunov.neteasy.ui.components.SkipPrevious
+import top.yunov.neteasy.ui.components.TrendingFlat
 import top.yunov.neteasy.ui.components.formatTime
 import top.yunov.neteasy.ui.components.rememberSmoothPositionMs
 import top.yunov.neteasy.ui.theme.ExpressiveMotion

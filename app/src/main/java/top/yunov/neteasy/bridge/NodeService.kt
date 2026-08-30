@@ -16,6 +16,7 @@ import androidx.core.app.ServiceCompat
 import java.io.File
 import java.io.FileOutputStream
 import top.yunov.neteasy.NodeJS
+import top.yunov.neteasy.R
 
 /**
  * 前台服务：运行内嵌的 Node.js 后端（nodejs-mobile + api-enhanced）。

@@ -24,12 +24,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Lyrics
-import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -60,6 +57,9 @@ import androidx.compose.ui.unit.dp
 import top.yunov.neteasy.data.AudioQuality
 import top.yunov.neteasy.data.ThemeMode
 import top.yunov.neteasy.data.UpdateUiState
+import top.yunov.neteasy.ui.components.DarkMode
+import top.yunov.neteasy.ui.components.Palette
+import top.yunov.neteasy.ui.components.Storage
 
 /**
  * 设置页（MD3 Expressive）：按功能分了三类，不再是七八张卡片平铺一遍：
