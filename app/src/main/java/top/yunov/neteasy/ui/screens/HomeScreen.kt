@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items as listItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ContainedLoadingIndicator
@@ -179,6 +180,7 @@ fun HomeScreen(
                                     title = "每日推荐",
                                     subtitle = "根据音乐口味生成",
                                     colors = listOf(Color(0xFFFF8A65), Color(0xFFFF5252)),
+                                    coverUrl = recommendSongs.first().picUrl,
                                     onClick = { showDailyRecommend = true },
                                     modifier = Modifier.weight(1f)
                                 )
@@ -188,6 +190,7 @@ fun HomeScreen(
                                     title = "排行榜",
                                     subtitle = "云音乐官方榜单",
                                     colors = listOf(Color(0xFFFFB74D), Color(0xFFFF7043)),
+                                    coverUrl = toplist.first().coverUrl,
                                     onClick = { onOpenPlaylist(toplist.first().id) },
                                     modifier = Modifier.weight(1f)
                                 )
@@ -196,11 +199,18 @@ fun HomeScreen(
                     }
                 }
                 item(span = { GridItemSpan(maxLineSpan) }) {
-                    Text(
-                        "推荐歌单",
-                        style = MaterialTheme.typography.titleLarge,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(top = 6.dp)
-                    )
+                    ) {
+                        Text("推荐歌单", style = MaterialTheme.typography.titleLarge)
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 2.dp).size(22.dp)
+                        )
+                    }
                 }
                 gridItems(playlists, key = { it.id }) { playlist ->
                     PlaylistCard(playlist, onClick = { onOpenPlaylist(playlist.id) })
@@ -349,6 +359,7 @@ private fun ShortcutCard(
     title: String,
     subtitle: String,
     colors: List<Color>,
+    coverUrl: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -359,7 +370,7 @@ private fun ShortcutCard(
         animationSpec = ExpressiveMotion.SpatialFast,
         label = "shortcutCardScale"
     )
-    Column(
+    Box(
         modifier =
         modifier
             .graphicsLayer {
@@ -367,13 +378,47 @@ private fun ShortcutCard(
                 scaleY = scale
             }.aspectRatio(1.8f)
             .clip(MaterialTheme.shapes.large)
-            .background(Brush.linearGradient(colors))
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.Bottom
     ) {
-        Text(title, style = MaterialTheme.typography.titleMedium, color = Color.White)
-        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.85f))
+        // 真封面图打底 + 渐变兜底色：封面还没加载出来（或者干脆没有）之前，
+        // 先用纯色渐变占位，图片加载完直接叠上去盖住，不会有一下子的跳变。
+        Box(modifier = Modifier.matchParentSize().background(Brush.linearGradient(colors)))
+        if (coverUrl.isNotBlank()) {
+            AsyncImage(
+                model = coverUrl.thumbnail(400),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
+        }
+        // 暗角渐变：保证不管封面本身多花哨，底部的白字标题都能看清楚
+        Box(
+            modifier =
+            Modifier
+                .matchParentSize()
+                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.65f))))
+        )
+        Column(modifier = Modifier.align(Alignment.BottomStart).padding(16.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, color = Color.White)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.85f))
+        }
+        Box(
+            modifier =
+            Modifier
+                .align(Alignment.TopEnd)
+                .padding(10.dp)
+                .size(28.dp)
+                .clip(RoundedCornerShape(percent = 50))
+                .background(Color.White.copy(alpha = 0.25f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Filled.PlayArrow,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(16.dp)
+            )
+        }
     }
 }
 
@@ -495,39 +540,49 @@ private fun PlaylistCard(playlist: Playlist, onClick: () -> Unit) {
                 scaleX = scale
                 scaleY = scale
             }.clip(MaterialTheme.shapes.large)
-            .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
     ) {
-        AsyncImage(
-            model = playlist.coverUrl.thumbnail(400),
-            contentDescription = playlist.name,
-            modifier =
-            Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f),
-            contentScale = ContentScale.Crop
-        )
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = playlist.name,
-                style = MaterialTheme.typography.titleSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+        // 封面 + 播放量角标：网易云「推荐歌单」这块卡片上不单独露标题文字，
+        // 靠封面右下角一个小小的播放量标签 + 下面一行运营文案（copywriter）撑内容，
+        // 点进去才看到真正的歌单名——跟着这个思路做，而不是「大标题+播放量」那种通用卡片。
+        Box {
+            AsyncImage(
+                model = playlist.coverUrl.thumbnail(400),
+                contentDescription = playlist.name,
+                modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .clip(MaterialTheme.shapes.large),
+                contentScale = ContentScale.Crop
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Filled.PlayArrow,
-                    contentDescription = null,
-                    modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = " ${formatCount(playlist.playCount)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            if (playlist.playCount > 0) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(13.dp),
+                        tint = Color.White
+                    )
+                    Text(
+                        text = formatCount(playlist.playCount),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White
+                    )
+                }
             }
         }
+        Text(
+            text = playlist.copywriter.ifBlank { playlist.name },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 8.dp)
+        )
     }
 }
 

@@ -27,7 +27,9 @@ data class Playlist(
     val playCount: Long = 0,
     val trackCount: Int = 0,
     /** 特殊歌单标记：5 = 系统「喜欢的音乐」歌单，其余为普通歌单（自建/收藏） */
-    val specialType: Int = 0
+    val specialType: Int = 0,
+    /** 运营文案（如「最近更新」「好听到停不下来，自有它的道理」），/personalized 才有，其余接口通常为空 */
+    val copywriter: String = ""
 ) {
     val isLikedSongs: Boolean get() = specialType == 5
 }
@@ -123,7 +125,8 @@ object JsonParser {
                 name = name,
                 coverUrl = o.optString("picUrl"),
                 playCount = o.optLong("playCount"),
-                trackCount = o.optInt("trackCount")
+                trackCount = o.optInt("trackCount"),
+                copywriter = o.optString("copywriter")
             )
         }
     }
