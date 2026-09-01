@@ -212,6 +212,7 @@ private fun NcmApp(settings: SettingsStore) {
                             )
                         },
                         onOpenSearch = { context.startActivity(Intent(context, SearchActivity::class.java)) },
+                        onOpenDailyRecommend = { context.startActivity(Intent(context, DailyRecommendActivity::class.java)) },
                         modifier = Modifier.fillMaxSize()
                     )
                 }

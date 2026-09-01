@@ -78,6 +78,12 @@
             android:parentActivityName=".MainActivity"
             android:theme="@style/Theme.Neteasy" />
         <activity
+            android:name=".DailyRecommendActivity"
+            android:exported="false"
+            android:label="每日推荐"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.Neteasy" />
+        <activity
             android:name=".UserDetailActivity"
             android:exported="false"
             android:label="个人信息"

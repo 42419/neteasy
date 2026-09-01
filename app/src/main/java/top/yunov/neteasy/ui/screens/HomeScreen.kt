@@ -61,7 +61,6 @@ import top.yunov.neteasy.data.model.Song
 import top.yunov.neteasy.data.model.thumbnail
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.toPlayerSong
-import top.yunov.neteasy.ui.components.QueueSheet
 import top.yunov.neteasy.ui.theme.ExpressiveMotion
 
 /**
@@ -86,6 +85,7 @@ fun HomeScreen(
     player: PlayerController,
     onOpenPlaylist: (Long) -> Unit,
     onOpenSearch: () -> Unit,
+    onOpenDailyRecommend: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var banners by remember { mutableStateOf<List<Banner>>(emptyList()) }
@@ -95,7 +95,6 @@ fun HomeScreen(
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var retryKey by remember { mutableIntStateOf(0) }
-    var showDailyRecommend by remember { mutableStateOf(false) }
 
     LaunchedEffect(retryKey) {
         loading = true
@@ -181,7 +180,7 @@ fun HomeScreen(
                                     subtitle = "根据音乐口味生成",
                                     colors = listOf(Color(0xFFFF8A65), Color(0xFFFF5252)),
                                     coverUrl = recommendSongs.first().picUrl,
-                                    onClick = { showDailyRecommend = true },
+                                    onClick = onOpenDailyRecommend,
                                     modifier = Modifier.weight(1f)
                                 )
                             }
@@ -258,23 +257,6 @@ fun HomeScreen(
                     }
                 }
             }
-    }
-
-    if (showDailyRecommend) {
-        QueueSheet(
-            queue = recommendSongs.map { it.toPlayerSong() },
-            currentIndex = -1,
-            onSelect = { index ->
-                player.playQueue(recommendSongs.map { it.toPlayerSong() }, index)
-                showDailyRecommend = false
-            },
-            onDismiss = { showDailyRecommend = false },
-            title = "每日推荐",
-            onPlayAll = {
-                player.playQueue(recommendSongs.map { it.toPlayerSong() }, 0)
-                showDailyRecommend = false
-            }
-        )
     }
 }
 

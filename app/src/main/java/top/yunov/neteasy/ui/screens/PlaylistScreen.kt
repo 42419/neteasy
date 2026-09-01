@@ -1,5 +1,6 @@
 package top.yunov.neteasy.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,7 +38,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -51,9 +55,14 @@ import top.yunov.neteasy.data.model.thumbnail
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.toPlayerSong
 import top.yunov.neteasy.ui.theme.ButtonShape
+import top.yunov.neteasy.ui.theme.extractCoverSeedColor
 
 /**
- * 歌单详情页（全屏覆盖层）：MD3 Expressive 大封面头部 + 播放全部 + 歌曲列表。
+ * 歌单详情页（全屏覆盖层）：MD3 Expressive 头图 + 播放全部 + 歌曲列表。
+ * 头图背景用封面取色（[extractCoverSeedColor]，跟全局动态取色是同一套逻辑）铺一层
+ * 渐变色，往下过渡到正常背景色——参考网易云歌单页那种「跟着封面色调走」的头图效果，
+ * 不是随便配的固定颜色。取不到色（图片加载失败/颜色太灰被判定不适合当主题色）就
+ * 老老实实用 surfaceContainer 兜底，不强求。
  *
  * 加载策略：
  * - 有内存缓存（[NcmRepository.cachedPlaylistOrNull]）：立即用缓存内容渲染，不显示加载动画，
@@ -69,7 +78,9 @@ fun PlaylistScreen(playlistId: Long, repository: NcmRepository, player: PlayerCo
     var loading by remember { mutableStateOf(true) }
     var refreshing by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var headerColor by remember { mutableStateOf<Color?>(null) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     suspend fun fetch(forceRefresh: Boolean): Boolean {
         return try {
@@ -102,6 +113,10 @@ fun PlaylistScreen(playlistId: Long, repository: NcmRepository, player: PlayerCo
             fetch(forceRefresh = false)
             loading = false
         }
+    }
+
+    LaunchedEffect(detail?.coverUrl) {
+        headerColor = detail?.coverUrl?.let { extractCoverSeedColor(context, it) }
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -163,61 +178,72 @@ fun PlaylistScreen(playlistId: Long, repository: NcmRepository, player: PlayerCo
                         ) {
                             if (pl != null) {
                                 item {
-                                    Row(
+                                    // 头图区：封面取色渐变 → 背景色，封面居左，标题/曲数/播放按钮居右，
+                                    // 参考网易云歌单页那种「封面+信息」并排的头图布局
+                                    Box(
                                         modifier =
                                         Modifier
                                             .fillMaxWidth()
-                                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                            .background(
+                                                Brush.verticalGradient(
+                                                    listOf(
+                                                        (headerColor ?: MaterialTheme.colorScheme.surfaceContainer).copy(alpha = 0.55f),
+                                                        MaterialTheme.colorScheme.background
+                                                    )
+                                                )
+                                            )
+                                            .padding(horizontal = 16.dp, vertical = 12.dp)
                                     ) {
-                                        AsyncImage(
-                                            model = pl.coverUrl.thumbnail(360),
-                                            contentDescription = null,
-                                            modifier =
-                                            Modifier
-                                                .size(120.dp)
-                                                .clip(MaterialTheme.shapes.extraLarge),
-                                            contentScale = ContentScale.Crop
-                                        )
-                                        Column(
-                                            modifier =
-                                            Modifier
-                                                .weight(1f)
-                                                .padding(start = 16.dp)
-                                        ) {
-                                            Text(
-                                                text = pl.name,
-                                                style = MaterialTheme.typography.titleLarge,
-                                                maxLines = 2,
-                                                overflow = TextOverflow.Ellipsis
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            AsyncImage(
+                                                model = pl.coverUrl.thumbnail(360),
+                                                contentDescription = null,
+                                                modifier =
+                                                Modifier
+                                                    .size(120.dp)
+                                                    .clip(MaterialTheme.shapes.extraLarge),
+                                                contentScale = ContentScale.Crop
                                             )
-                                            Text(
-                                                text = "${pl.trackCount} 首",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.padding(top = 4.dp)
-                                            )
-                                            FilledTonalButton(
-                                                onClick = {
-                                                    if (songs.isNotEmpty()) {
-                                                        player.playQueue(
-                                                            songs.map { it.toPlayerSong() },
-                                                            0
-                                                        )
-                                                    }
-                                                },
-                                                modifier = Modifier.padding(top = 12.dp),
-                                                shape = ButtonShape
+                                            Column(
+                                                modifier =
+                                                Modifier
+                                                    .weight(1f)
+                                                    .padding(start = 16.dp)
                                             ) {
-                                                Icon(
-                                                    Icons.Filled.PlayArrow,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(18.dp)
+                                                Text(
+                                                    text = pl.name,
+                                                    style = MaterialTheme.typography.titleLarge,
+                                                    maxLines = 2,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                                 Text(
-                                                    "播放",
-                                                    modifier = Modifier.padding(start = 6.dp)
+                                                    text = "${pl.trackCount} 首",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.padding(top = 4.dp)
                                                 )
+                                                FilledTonalButton(
+                                                    onClick = {
+                                                        if (songs.isNotEmpty()) {
+                                                            player.playQueue(
+                                                                songs.map { it.toPlayerSong() },
+                                                                0
+                                                            )
+                                                        }
+                                                    },
+                                                    modifier = Modifier.padding(top = 12.dp),
+                                                    shape = ButtonShape
+                                                ) {
+                                                    Icon(
+                                                        Icons.Filled.PlayArrow,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                    Text(
+                                                        "播放",
+                                                        modifier = Modifier.padding(start = 6.dp)
+                                                    )
+                                                }
                                             }
                                         }
                                     }
