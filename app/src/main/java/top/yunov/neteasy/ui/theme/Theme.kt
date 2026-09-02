@@ -1,5 +1,6 @@
 package top.yunov.neteasy.ui.theme
 
+import android.app.Activity
 import android.os.Build
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -12,11 +13,14 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import com.materialkolor.rememberDynamicColorScheme
 import top.yunov.neteasy.NeteasyApp
 import top.yunov.neteasy.data.SettingsStore
@@ -128,6 +132,21 @@ fun NeteasyTheme(
                 else -> LightColorScheme
             }
         }
+
+    // 状态栏/导航栏图标深浅：enableEdgeToEdge() 只在 Activity 创建那一刻按「系统」深色模式
+    // 判断一次，不会跟着应用内「深色模式」设置（跟随系统/浅色/深色三选一，可能和系统当前
+    // 状态不一致）实时更新，也不会在设置页切换后立刻生效。这里跟着最终解析出的 [darkTheme]
+    // 每次重组都同步一次，保证图标颜色永远和当前实际背景深浅匹配（沉浸式状态栏最容易在这
+    // 里出问题：背景是浅色、图标却是浅色图标，直接看不见）。
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as? Activity)?.window ?: return@SideEffect
+            val controller = WindowCompat.getInsetsController(window, view)
+            controller.isAppearanceLightStatusBars = !darkTheme
+            controller.isAppearanceLightNavigationBars = !darkTheme
+        }
+    }
 
     MaterialExpressiveTheme(
         colorScheme = colorScheme,
