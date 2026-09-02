@@ -1,6 +1,9 @@
 package top.yunov.neteasy.ui.screens
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -17,12 +20,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items as listItems
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -64,8 +66,8 @@ import top.yunov.neteasy.player.toPlayerSong
 import top.yunov.neteasy.ui.theme.ExpressiveMotion
 
 /**
- * 首页：MD3 Expressive 大标题 + Banner 轮播 + 快捷入口 + 推荐歌单 + 排行榜 + 每日推荐歌曲。
- * 参考网易云首页实际布局做的取舍（详见各板块注释里标的接口来源）：
+ * 首页：MD3 Expressive 搜索栏 + 大标题 + Banner 轮播 + 快捷入口 + 推荐歌单 + 排行榜 + 每日推荐歌曲。
+ * 参考网易云/QQ音乐/酷狗首页实际布局做的取舍（详见各板块注释里标的接口来源）：
  * - Banner、推荐歌单、排行榜、每日推荐歌曲：api-enhanced 有对应接口，做了
  * - 雷达歌单：点进去本质就是「每日推荐」那套 UI（播放全部 + 歌曲列表），跟每日推荐
  *   歌曲是同一个数据源（/recommend/songs），不用另外单独接一套
@@ -73,6 +75,14 @@ import top.yunov.neteasy.ui.theme.ExpressiveMotion
  *   算法，api-enhanced 没有对应接口，做不了
  * - 播客节目推荐：点进去是完全独立的「播客」大 Tab，数据模型和播放链路都要重新搭，
  *   工作量远超首页改版本身，且用户几乎不用，不做
+ *
+ * 版式改版（2026-09）：原来「推荐歌单」用 2 列网格铺开，卡片下面两行文案跟下一行卡片
+ * 挨得太近、观感拥挤；大厂首页这块清一色是横向滑动卡片流，不是网格——改成跟排行榜/
+ * 每日推荐单曲一样的 LazyRow，行高只取决于这一行自己，不会有网格「按最高的那个对齐」
+ * 导致的拥挤问题。Banner 也从简单 LazyRow 换成真正的居中露边分页轮播（HorizontalPager
+ * + 圆点指示器 + 自动轮播），不再是硬切在屏幕边缘的裁切效果。
+ * 配色上不再给快捷卡片写死橙红渐变——改用当前 colorScheme 的 primary/tertiary 等，
+ * 封面取色开启时快捷卡片会跟着一起变色，符合「跟随封面动态取色为主」的方向。
  *
  * 数据来自本地 Node 后端 /banner /personalized /toplist /recommend/songs。
  * 冷启动时 Node 可能未就绪：失败后自动重试 5 次（间隔 2s）。/recommend/songs
@@ -143,42 +153,48 @@ fun HomeScreen(
                 }
             }
         else ->
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
+            LazyColumn(
                 modifier = modifier,
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp),
+                // section 之间留够呼吸感（24dp）
+                verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    SearchEntryBar(onClick = onOpenSearch, modifier = Modifier.padding(bottom = 10.dp))
-                }
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Column(modifier = Modifier.padding(bottom = 4.dp)) {
-                        // 强调排版 hero：大标题引导注意力（MD3 Expressive）
-                        Text("发现音乐", style = MaterialTheme.typography.headlineLarge)
-                        Text(
-                            "为你推荐",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                item {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        SearchEntryBar(onClick = onOpenSearch)
+                        Column {
+                            // 强调排版 hero：大标题引导注意力（MD3 Expressive）
+                            Text("发现音乐", style = MaterialTheme.typography.headlineLarge)
+                            Text(
+                                "为你推荐",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
                 if (banners.isNotEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) { BannerStrip(banners) }
+                    item { BannerPager(banners) }
                 }
                 // 快捷入口：每日推荐 / 排行榜——网易云首页最上面那排彩色卡片的简化版，
                 // 只留了两个真正有数据支撑的入口。之前点「每日推荐」直接开始播放，
                 // 跟网易云的实际交互不一样（应该先看列表再选，不是点进去就唐突开始播放）——
                 // 改成打开底部列表面板，跟 QueueSheet 是同一套组件（详见 QueueSheet.kt 改动）。
+                // 渐变色不再写死橙红，直接取当前 colorScheme——封面取色开启时会跟着变。
                 if (recommendSongs.isNotEmpty() || toplist.isNotEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    item {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                        ) {
                             if (recommendSongs.isNotEmpty()) {
                                 ShortcutCard(
                                     title = "每日推荐",
                                     subtitle = "根据音乐口味生成",
-                                    colors = listOf(Color(0xFFFF8A65), Color(0xFFFF5252)),
+                                    colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary),
                                     coverUrl = recommendSongs.first().picUrl,
                                     onClick = onOpenDailyRecommend,
                                     modifier = Modifier.weight(1f)
@@ -188,7 +204,7 @@ fun HomeScreen(
                                 ShortcutCard(
                                     title = "排行榜",
                                     subtitle = "云音乐官方榜单",
-                                    colors = listOf(Color(0xFFFFB74D), Color(0xFFFF7043)),
+                                    colors = listOf(MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.primary),
                                     coverUrl = toplist.first().coverUrl,
                                     onClick = { onOpenPlaylist(toplist.first().id) },
                                     modifier = Modifier.weight(1f)
@@ -197,35 +213,35 @@ fun HomeScreen(
                         }
                     }
                 }
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(top = 6.dp)
-                    ) {
-                        Text("推荐歌单", style = MaterialTheme.typography.titleLarge)
-                        Icon(
-                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 2.dp).size(22.dp)
+                if (playlists.isNotEmpty()) {
+                    item {
+                        SectionHeader(
+                            title = "推荐歌单",
+                            modifier = Modifier.padding(horizontal = 16.dp)
                         )
                     }
-                }
-                gridItems(playlists, key = { it.id }) { playlist ->
-                    PlaylistCard(playlist, onClick = { onOpenPlaylist(playlist.id) })
+                    item {
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            listItems(playlists, key = { it.id }) { playlist ->
+                                PlaylistCard(playlist, onClick = { onOpenPlaylist(playlist.id) })
+                            }
+                        }
+                    }
                 }
                 // 排行榜：/toplist 返回的每个榜单本身就是一个官方歌单，点击直接复用现有的
                 // 歌单详情页（onOpenPlaylist），不用另外做一个「榜单详情」页面
                 if (toplist.isNotEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Text(
-                            "排行榜",
-                            style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier.padding(top = 10.dp)
-                        )
+                    item {
+                        SectionHeader(title = "排行榜", modifier = Modifier.padding(horizontal = 16.dp))
                     }
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    item {
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
                             listItems(toplist.take(10), key = { it.id }) { chart ->
                                 ChartCard(chart, onClick = { onOpenPlaylist(chart.id) })
                             }
@@ -235,15 +251,14 @@ fun HomeScreen(
                 // 每日推荐歌曲：点一首直接从那首开始播放（整份推荐列表当队列），
                 // 跟网易云本身「点歌曲即播放，不用先进详情页」的操作习惯一致
                 if (recommendSongs.isNotEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Text(
-                            "每日推荐",
-                            style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier.padding(top = 10.dp)
-                        )
+                    item {
+                        SectionHeader(title = "每日推荐", modifier = Modifier.padding(horizontal = 16.dp))
                     }
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    item {
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
                             listItems(recommendSongs.take(15), key = { it.id }) { song ->
                                 RecommendSongCard(
                                     song = song,
@@ -310,27 +325,108 @@ private fun SearchEntryBar(onClick: () -> Unit, modifier: Modifier = Modifier) {
 }
 
 /**
- * Banner 横向滑动：露一点下一张（peek carousel），提示还能往右划——参考截图里
- * 网易云首页 Banner 只显示当前 + 下一张露边，不是每张都占满整行。
- * fillParentMaxWidth() 比 BoxWithConstraints 便宜（不用额外一次子组合去量宽度）。
+ * 统一的板块标题：标题 + 右侧「更多」入口（可选）。之前每个板块各写一遍 Row，
+ * 样式细节（间距/图标大小）容易走样，抽出来保证「推荐歌单/排行榜/每日推荐」视觉一致。
  */
 @Composable
-private fun BannerStrip(banners: List<Banner>) {
-    LazyRow(
-        contentPadding = PaddingValues(end = 40.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
+private fun SectionHeader(title: String, modifier: Modifier = Modifier, onMore: (() -> Unit)? = null) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        listItems(banners.take(5), key = { it.picUrl }) { banner ->
+        Text(title, style = MaterialTheme.typography.titleLarge)
+        if (onMore != null) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.clip(RoundedCornerShape(percent = 50)).clickable(onClick = onMore)
+            ) {
+                Text(
+                    "更多",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Banner 轮播：真正的分页轮播（居中当前张 + 左右各露一点下一/上一张），配圆点指示器 +
+ * 自动轮播（4s 一张，手动划走后计时器跟着重新排期，不会跟手势打架）。
+ * 之前用 LazyRow 硬摆一排、右侧固定留白 40dp，视觉上是「硬切在屏幕边缘」而不是真正的
+ * 分页轮播——网易云/QQ音乐首页 Banner 都是这种居中露边 + 指示器的样式。
+ */
+@Composable
+private fun BannerPager(banners: List<Banner>) {
+    val pagerState = rememberPagerState(pageCount = { banners.size })
+    // key 里带上 currentPage：每次翻页（不管是手动划还是自动轮播触发的）都重新起一个
+    // 4s 倒计时，翻页之间的间隔永远是「稳定在当前页 4s 后才切换」，不会因为自动触发的
+    // 那次翻页而让下一次计时错乱。
+    LaunchedEffect(pagerState.currentPage, banners.size) {
+        if (banners.size > 1) {
+            delay(4000)
+            pagerState.animateScrollToPage((pagerState.currentPage + 1) % banners.size)
+        }
+    }
+    Column {
+        HorizontalPager(
+            state = pagerState,
+            contentPadding = PaddingValues(horizontal = 28.dp),
+            pageSpacing = 12.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) { page ->
+            val banner = banners[page]
             AsyncImage(
                 model = banner.picUrl.thumbnail(1200, 600),
                 contentDescription = banner.typeTitle,
                 modifier =
                 Modifier
-                    .fillParentMaxWidth(0.86f)
-                    .aspectRatio(2f)
+                    .fillMaxWidth()
+                    .aspectRatio(2.1f)
                     .clip(MaterialTheme.shapes.extraLarge),
                 contentScale = ContentScale.Crop
             )
+        }
+        if (banners.size > 1) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(banners.size) { index ->
+                    val selected = pagerState.currentPage == index
+                    val dotWidth by animateDpAsState(
+                        targetValue = if (selected) 20.dp else 6.dp,
+                        // ExpressiveMotion 里的弹簧 token 都是 SpringSpec<Float>（给颜色/透明度/位移用），
+                        // 这里动画的是 Dp 类型，类型不匹配没法直接复用，本地起一个参数相同的 Dp 弹簧
+                        // （对应 EffectsFast：无过冲，用于这种小尺寸变化的过渡）。
+                        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
+                        label = "bannerDotWidth"
+                    )
+                    Box(
+                        modifier =
+                        Modifier
+                            .padding(horizontal = 3.dp)
+                            .height(6.dp)
+                            .width(dotWidth)
+                            .clip(RoundedCornerShape(percent = 50))
+                            .background(
+                                if (selected) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.outlineVariant
+                                }
+                            )
+                    )
+                }
+            }
         }
     }
 }
@@ -504,7 +600,11 @@ private fun RecommendSongCard(song: Song, onClick: () -> Unit) {
     }
 }
 
-/** 推荐歌单卡片：大圆角 + 按压弹性缩放 */
+/**
+ * 推荐歌单卡片：横向滑动流里的一张，固定宽度（140dp）+ 固定文字区高度（两行文案对齐），
+ * 不再放进 2 列网格——网格按「这一行最高的卡片」统一对齐行高，一旦某张卡片文案换行更多，
+ * 整行看起来就会挤；横向单排没有这个问题，每张卡片的高度只取决于它自己。
+ */
 @Composable
 private fun PlaylistCard(playlist: Playlist, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
@@ -521,7 +621,8 @@ private fun PlaylistCard(playlist: Playlist, onClick: () -> Unit) {
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
-            }.clip(MaterialTheme.shapes.large)
+            }.width(140.dp)
+            .clip(MaterialTheme.shapes.large)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
     ) {
         // 封面 + 播放量角标：网易云「推荐歌单」这块卡片上不单独露标题文字，
@@ -563,7 +664,9 @@ private fun PlaylistCard(playlist: Playlist, onClick: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 8.dp)
+            // 固定两行的高度（跟 bodySmall 的 lineHeight 对齐），不管文案实际是一行还是两行，
+            // 卡片总高度都一致——横向滑动的一排卡片底部才能对得整齐。
+            modifier = Modifier.padding(top = 8.dp).height(32.dp)
         )
     }
 }
@@ -573,4 +676,3 @@ private fun formatCount(count: Long): String = when {
     count >= 10_000 -> "%.1f万".format(count / 10_000.0)
     else -> "$count"
 }
-
