@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -73,13 +74,18 @@ fun LyricSettingsScreen(
 ) {
     var presetDialog by remember { mutableStateOf(false) }
 
-    Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceContainerLowest) {
+    // Surface 之前是 fillMaxWidth()——只管宽度，高度完全由内容撑开；这个页面内容一般比屏幕矮，
+    // 背景色实际只画到内容底部就没了，屏幕剩下的部分露出 Activity 主题的默认背景（不是本页
+    // 背景色，深色模式下尤其显眼的一条色差），改成 fillMaxSize() 背景才会铺满整个屏幕。
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainerLowest) {
         Column(
             modifier =
             Modifier
-                .fillMaxWidth()
-                .windowInsetsPadding(WindowInsets.systemBars)
+                .fillMaxSize()
+                // insets 挪到 verticalScroll 后面：放前面会把系统栏高度从可滚动视口本身抠掉，
+                // 内容永远滚不到状态栏/手势导航栏底下
                 .verticalScroll(rememberScrollState())
+                .windowInsetsPadding(WindowInsets.systemBars)
                 .padding(20.dp)
         ) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

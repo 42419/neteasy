@@ -83,8 +83,10 @@ fun UserDetailScreen(repository: NcmRepository, uid: Long, onBack: () -> Unit) {
             modifier =
             Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.systemBars)
+                // 见 StorageScreen 同样的改法：insets 挪到 verticalScroll 后面，让它变成可滚动
+                // 内容的一部分，而不是永久占掉可滚动视口的高度
                 .verticalScroll(rememberScrollState())
+                .windowInsetsPadding(WindowInsets.systemBars)
                 .padding(20.dp)
         ) {
             // 顶部返回栏（标题与其他二级页面统一：粗体大字）

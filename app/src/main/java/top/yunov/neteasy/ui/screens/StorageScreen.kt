@@ -59,8 +59,12 @@ fun StorageScreen(
             modifier =
             Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.systemBars)
+                // windowInsetsPadding 放在 verticalScroll 前面会把系统栏的高度从可滚动视口本身
+                // 里抠掉——内容永远滚不到状态栏/手势导航栏底下。挪到 verticalScroll 后面，insets
+                // 变成可滚动内容的一部分（效果上等同于 LazyColumn 的 contentPadding），
+                // 页面能在这两条系统栏底下正常滚动
                 .verticalScroll(rememberScrollState())
+                .windowInsetsPadding(WindowInsets.systemBars)
                 .padding(20.dp)
         ) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

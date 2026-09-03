@@ -7,11 +7,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -83,17 +85,15 @@ fun DailyRecommendScreen(repository: NcmRepository, player: PlayerController, on
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            modifier =
-            Modifier
-                .fillMaxSize()
-                // 全屏覆盖层，Scaffold 的 insets 罩不到这里，自己处理状态栏/手势导航栏
-                .windowInsetsPadding(WindowInsets.systemBars)
-        ) {
+        Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier =
                 Modifier
                     .fillMaxWidth()
+                    // 只让这一行返回栏躲开状态栏——原来是整个 Column 套 systemBars，等于把状态栏
+                    // +手势导航栏两条的高度都从页面内容区域里永久抠掉，下面 LazyColumn 那截头图
+                    // 渐变卡片、乃至整页内容都被上下各挤掉一条边
+                    .windowInsetsPadding(WindowInsets.statusBars)
                     .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -118,8 +118,12 @@ fun DailyRecommendScreen(repository: NcmRepository, player: PlayerController, on
                 else ->
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        // 底部留白让最后几首歌不会被悬浮 Minibar 挡住，同歌单详情页
-                        contentPadding = PaddingValues(bottom = 96.dp),
+                        // 底部同时吃手势导航栏实际高度 + 96dp 悬浮 Minibar 净空，最后几首歌能滚动到
+                        // 系统导航栏下面，而不是被一块固定 inset 拦住（同歌单详情页的改法）
+                        contentPadding =
+                        PaddingValues(
+                            bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 96.dp
+                        ),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         item {

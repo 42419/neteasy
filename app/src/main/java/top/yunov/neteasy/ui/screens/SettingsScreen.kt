@@ -101,10 +101,10 @@ fun SettingsScreen(
             modifier =
             Modifier
                 .fillMaxSize()
-                // 本页作为全屏覆盖层渲染在 Scaffold 之外，需要自己处理状态栏/手势导航栏安全区，
-                // 否则标题会被状态栏遮住（见截图）。
-                .windowInsetsPadding(WindowInsets.systemBars)
+                // insets 挪到 verticalScroll 后面：放前面会把系统栏高度从可滚动视口本身抠掉，
+                // 页面内容永远滚不到状态栏/手势导航栏底下，整页看着像上下各被裁掉一条边
                 .verticalScroll(rememberScrollState())
+                .windowInsetsPadding(WindowInsets.systemBars)
                 .padding(20.dp)
         ) {
             // 顶部返回栏
