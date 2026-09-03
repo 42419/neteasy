@@ -29,7 +29,21 @@ data class Playlist(
     /** 特殊歌单标记：5 = 系统「喜欢的音乐」歌单，其余为普通歌单（自建/收藏） */
     val specialType: Int = 0,
     /** 运营文案（如「最近更新」「好听到停不下来，自有它的道理」），/personalized 才有，其余接口通常为空 */
-    val copywriter: String = ""
+    val copywriter: String = "",
+    // 以下几个只有 /playlist/detail（歌单详情页）才会填，列表场景（推荐/榜单/我的歌单）留空即可，
+    // 详情页原本就在拿这个接口，不用多打请求，顺手在 parsePlaylistDetail 里把这几个字段也解出来。
+    /** 创建者昵称 */
+    val creatorName: String = "",
+    /** 创建者头像 */
+    val creatorAvatarUrl: String = "",
+    /** 歌单描述，创建者没写的话是空串 */
+    val description: String = "",
+    /** 收藏数 */
+    val subscribedCount: Long = 0,
+    /** 评论数 */
+    val commentCount: Long = 0,
+    /** 标签（官方精选歌单才有，普通用户自建歌单通常是空列表） */
+    val tags: List<String> = emptyList()
 ) {
     val isLikedSongs: Boolean get() = specialType == 5
 }
@@ -155,12 +169,26 @@ object JsonParser {
         val id = p.optLong("id")
         val name = p.optString("name")
         if (id == 0L || name.isEmpty()) return null
+        val creator = p.optJSONObject("creator")
+        val tagsArr = p.optJSONArray("tags")
+        val tags =
+            if (tagsArr != null) {
+                (0 until tagsArr.length()).mapNotNull { i -> tagsArr.optString(i).takeIf { it.isNotBlank() } }
+            } else {
+                emptyList()
+            }
         return Playlist(
             id = id,
             name = name,
             coverUrl = p.optString("coverImgUrl"),
             playCount = p.optLong("playCount"),
-            trackCount = p.optInt("trackCount")
+            trackCount = p.optInt("trackCount"),
+            creatorName = creator?.optString("nickname").orEmpty(),
+            creatorAvatarUrl = creator?.optString("avatarUrl").orEmpty(),
+            description = p.optString("description"),
+            subscribedCount = p.optLong("subscribedCount"),
+            commentCount = p.optLong("commentCount"),
+            tags = tags
         )
     }
 
