@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -83,7 +84,14 @@ fun NowPlayingScreen(
     /** 歌词渲染样式，由调用方（PlayerOverlay）按 SettingsStore 里的歌词设置组装好传进来。 */
     lyricStyle: AppleMusicLyricPlayerStyle = AppleMusicLyricPlayerStyle(),
     /** 已按显示设置（翻译/音译开关）裁剪过的歌词行；默认直接用未裁剪的原始数据。 */
-    lyricLines: List<top.met6.amll.LyricLine> = state.lyricLines
+    lyricLines: List<top.met6.amll.LyricLine> = state.lyricLines,
+    /**
+     * 歌词同步偏移（毫秒）：正值歌词提前显示，负值延后（设置页可调）。
+     * 叠加在播放时钟上，点击歌词跳转时会反向扣除，保证“点哪行播哪行”仍然对齐。
+     */
+    lyricOffsetMs: Long = 0,
+    /** 歌词字体：默认系统字体或内置霞鹜文楷（设置页可选）。 */
+    lyricFontFamily: FontFamily = FontFamily.Default
 ) {
     val song = state.song ?: return // 理论上不会在没有歌曲时展开；兜底不渲染空页面
     // 歌词 / 封面切换：默认显示封面，点「词」切换为歌词视图
@@ -124,25 +132,28 @@ fun NowPlayingScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 歌名 / 歌手，居中，大标题
-            Text(
-                text = song.name,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Text(
-                text = song.artists,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-            )
+            // 歌名 / 歌手，居中，大标题。歌词视图时不显示——把这块高度让给滚动歌词区域，
+            // 歌词可视空间更大，也符合“看歌词时不重复看歌名”的常规习惯（顶部已有「词」开关）。
+            if (!showLyrics) {
+                Text(
+                    text = song.name,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    text = song.artists,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                )
+            }
 
             // 中部：封面 ↔ 歌词 切换（占据剩余高度，下方控件固定在底部）
             Box(
@@ -155,11 +166,20 @@ fun NowPlayingScreen(
                     if (lyricLines.isNotEmpty()) {
                         AppleMusicLyricPlayer(
                             lyricLines = lyricLines,
-                            currentTimeMs = state.positionMs,
+                            currentTimeMs = state.positionMs + lyricOffsetMs,
                             isPlaying = state.isPlaying,
                             modifier = Modifier.fillMaxSize(),
                             style = lyricStyle,
-                            onLineClick = { line -> onSeek(line.startTime.toInt()) }
+                            fontFamily = lyricFontFamily,
+                            onLineClick = { line ->
+                                // 直接 seek line.startTime 会跳不准：LyricOptimizer 会把行的显示开始
+                                // 时间提前最多 600ms 用于视觉过渡，这里用第一个有字的词的真实时间；
+                                // 再反向扣除用户设置的歌词偏移，保证“点哪行播哪行”仍然对齐。
+                                val lyricPosition =
+                                    line.words.firstOrNull { it.word.isNotBlank() }?.startTime
+                                        ?: line.startTime
+                                onSeek(((lyricPosition - lyricOffsetMs).coerceAtLeast(0L)).toInt())
+                            }
                         )
                     } else {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

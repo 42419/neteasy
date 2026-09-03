@@ -37,6 +37,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
+import top.yunov.neteasy.data.LyricFont
 import top.yunov.neteasy.data.LyricSpringPreset
 
 /**
@@ -44,8 +46,9 @@ import top.yunov.neteasy.data.LyricSpringPreset
  * 这里调的每一项都是 [top.met6.amll.AppleMusicLyricPlayerStyle] 本来就支持、
  * 但之前在 NowPlayingScreen 里写死的参数，改完立即生效（PlayerOverlay onResume 重读）。
  *
- * 分四块：
+ * 分五块：
  * - 显示内容：翻译 / 逐行音译 / 逐词音译 三个开关（数据本身已经带这些字段，这里只是显隐）
+ * - 字体与同步：歌词字体（默认 / 霞鹜文楷）、歌词偏移（逐字时间轴跟音频对不齐时的整体微调）
  * - 布局：当前行垂直锚点、逐字渐变宽度、非当前行透明度
  * - 效果：模糊、缩放呼吸
  * - 滚动手感：弹簧预设（默认按行间隔自适应 / 柔和 / 跟手 / 弹性 / 沉稳 / 无回弹）
@@ -70,9 +73,14 @@ fun LyricSettingsScreen(
     onEnableScaleChange: (Boolean) -> Unit,
     springPreset: LyricSpringPreset,
     onSpringPresetChange: (LyricSpringPreset) -> Unit,
+    lyricFont: LyricFont,
+    onLyricFontChange: (LyricFont) -> Unit,
+    lyricOffsetMs: Int,
+    onLyricOffsetMsChange: (Int) -> Unit,
     onBack: () -> Unit
 ) {
     var presetDialog by remember { mutableStateOf(false) }
+    var fontDialog by remember { mutableStateOf(false) }
 
     // Surface 之前是 fillMaxWidth()——只管宽度，高度完全由内容撑开；这个页面内容一般比屏幕矮，
     // 背景色实际只画到内容底部就没了，屏幕剩下的部分露出 Activity 主题的默认背景（不是本页
@@ -111,6 +119,38 @@ fun LyricSettingsScreen(
                     subtitle = "TTML 逐词歌词库里带的单字注音",
                     checked = showWordRomanization,
                     onCheckedChange = onShowWordRomanizationChange,
+                    showDivider = false
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // 字体与同步：字体选择 + 整体偏移微调
+            LyricSettingsCard(title = "字体与同步") {
+                Row(
+                    modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { fontDialog = true }
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("歌词字体", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            "当前：${lyricFont.label}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                LyricSliderRow(
+                    title = "歌词偏移",
+                    subtitle = "当前 ${formatLyricOffset(lyricOffsetMs)}，正值歌词提前、负值延后",
+                    value = lyricOffsetMs.toFloat(),
+                    valueRange = -3000f..3000f,
+                    steps = 59,
+                    onValueChange = { onLyricOffsetMsChange(it.roundToInt()) },
                     showDivider = false
                 )
             }
@@ -191,6 +231,52 @@ fun LyricSettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+
+    if (fontDialog) {
+        AlertDialog(
+            onDismissRequest = { fontDialog = false },
+            title = { Text("歌词字体") },
+            text = {
+                Column {
+                    LyricFont.entries.forEach { font ->
+                        Row(
+                            modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(MaterialTheme.shapes.medium)
+                                .clickable {
+                                    onLyricFontChange(font)
+                                    fontDialog = false
+                                }
+                                .padding(horizontal = 4.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                font.label,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color =
+                                if (font == lyricFont) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (font == lyricFont) {
+                                Icon(
+                                    Icons.Filled.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { fontDialog = false }) { Text("关闭") } }
+        )
     }
 
     if (presetDialog) {
@@ -291,12 +377,20 @@ private fun LyricSliderRow(
     value: Float,
     valueRange: ClosedFloatingPointRange<Float>,
     onValueChange: (Float) -> Unit,
+    steps: Int = 0,
     showDivider: Boolean = true
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text(title, style = MaterialTheme.typography.bodyLarge)
         Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Slider(value = value, onValueChange = onValueChange, valueRange = valueRange)
+        Slider(value = value, onValueChange = onValueChange, valueRange = valueRange, steps = steps)
     }
     if (!showDivider) Spacer(modifier = Modifier.height(8.dp))
+}
+
+/** 偏移毫秒数格式化成“+0.5s / -1.0s / 0s”这种带符号的秒数 */
+private fun formatLyricOffset(ms: Int): String {
+    if (ms == 0) return "0s"
+    val sign = if (ms > 0) "+" else "-"
+    return "$sign${(kotlin.math.abs(ms) / 1000.0)}s"
 }

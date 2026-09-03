@@ -32,6 +32,8 @@ class LyricSettingsActivity : ComponentActivity() {
             var enableBlur by remember { mutableStateOf(settings.lyricEnableBlur) }
             var enableScale by remember { mutableStateOf(settings.lyricEnableScale) }
             var springPreset by remember { mutableStateOf(settings.lyricSpringPreset) }
+            var lyricFont by remember { mutableStateOf(settings.lyricFont) }
+            var lyricOffsetMs by remember { mutableStateOf(settings.lyricOffsetMs) }
 
             NeteasyThemedScreen {
                 LyricSettingsScreen(
@@ -79,6 +81,16 @@ class LyricSettingsActivity : ComponentActivity() {
                     onSpringPresetChange = {
                         settings.lyricSpringPreset = it
                         springPreset = it
+                    },
+                    lyricFont = lyricFont,
+                    onLyricFontChange = {
+                        settings.lyricFont = it
+                        lyricFont = it
+                    },
+                    lyricOffsetMs = lyricOffsetMs,
+                    onLyricOffsetMsChange = {
+                        settings.lyricOffsetMs = it
+                        lyricOffsetMs = it
                     },
                     onBack = { finish() }
                 )

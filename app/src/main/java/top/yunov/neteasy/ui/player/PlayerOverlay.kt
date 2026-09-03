@@ -29,6 +29,7 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -36,11 +37,13 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.launch
 import top.met6.amll.AppleMusicLyricPlayerStyle
+import top.yunov.neteasy.data.LyricFont
 import top.yunov.neteasy.data.SettingsStore
 import top.yunov.neteasy.data.filteredForDisplay
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.ui.components.PlayerMinibar
 import top.yunov.neteasy.ui.components.QueueSheet
+import top.yunov.neteasy.ui.theme.LxgwWenKaiLiteFamily
 
 /**
  * Minibar ↔ 展开播放页的“逻辑目标状态”，跟连续的拖动进度分开管：拖动过程中进度是
@@ -102,6 +105,8 @@ fun PlayerAwareContent(
     var lyricShowLineRomanization by remember { mutableStateOf(settings.lyricShowLineRomanization) }
     var lyricShowWordRomanization by remember { mutableStateOf(settings.lyricShowWordRomanization) }
     var lyricSpringPreset by remember { mutableStateOf(settings.lyricSpringPreset) }
+    var lyricFont by remember { mutableStateOf(settings.lyricFont) }
+    var lyricOffsetMs by remember { mutableStateOf(settings.lyricOffsetMs) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -117,6 +122,8 @@ fun PlayerAwareContent(
                     lyricShowLineRomanization = settings.lyricShowLineRomanization
                     lyricShowWordRomanization = settings.lyricShowWordRomanization
                     lyricSpringPreset = settings.lyricSpringPreset
+                    lyricFont = settings.lyricFont
+                    lyricOffsetMs = settings.lyricOffsetMs
                 }
             }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -126,7 +133,7 @@ fun PlayerAwareContent(
     val lyricStyle =
         AppleMusicLyricPlayerStyle(
             color = MaterialTheme.colorScheme.onSurface,
-            fontSize = 18.sp,
+            fontSize = 24.sp,
             alignPosition = lyricAlignPosition,
             wordFadeWidth = lyricWordFadeWidth,
             inactiveMaskAlpha = lyricInactiveAlpha,
@@ -141,6 +148,8 @@ fun PlayerAwareContent(
                 it.filteredForDisplay(lyricShowTranslation, lyricShowLineRomanization, lyricShowWordRomanization)
             }
         }
+    val lyricFontFamily =
+        if (lyricFont == LyricFont.LXGW_WENKAI) LxgwWenKaiLiteFamily else FontFamily.Default
 
     // ---- Minibar ↔ 展开播放页：手动拖动展开/收起 ----
     var sheetTarget by remember { mutableStateOf(SheetTarget.COLLAPSED) }
@@ -310,7 +319,9 @@ fun PlayerAwareContent(
                     onCycleRepeat = { player.cycleRepeatMode() },
                     onCollapse = { collapseSheet() },
                     lyricStyle = lyricStyle,
-                    lyricLines = filteredLyricLines
+                    lyricLines = filteredLyricLines,
+                    lyricOffsetMs = lyricOffsetMs.toLong(),
+                    lyricFontFamily = lyricFontFamily
                 )
             }
         }

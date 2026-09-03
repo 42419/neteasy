@@ -22,6 +22,16 @@ enum class AudioQuality(val level: String, val label: String) {
 }
 
 /**
+ * 歌词字体：默认（跟随系统字体）/ 霞鹜文楷（内置开源楷体，默认）。
+ * 霞鹜文楷（Lxgw WenKai Lite）是 OFL 许可的开源中文字体，随 APK 内置，
+ * 用作歌词展示时比系统默认字体更有“歌词排版”的观感。
+ */
+enum class LyricFont(val label: String) {
+    DEFAULT("默认"),
+    LXGW_WENKAI("霞鹜文楷")
+}
+
+/**
  * 歌词滚动的“手感”预设——覆盖 AMLL 原本按行间隔动态计算的弹簧参数（[top.met6.amll.lyricScrollSpringPolicy]）。
  * ADAPTIVE 即不覆盖，沿用原版按歌词密度自适应的效果；其余几档给一个固定观感，供不想深究物理参数的人直接选。
  */
@@ -135,6 +145,23 @@ class SettingsStore(context: Context) {
         }
         set(value) = prefs.edit().putString(KEY_LYRIC_SPRING_PRESET, value.name).apply()
 
+    /** 歌词字体：默认用内置霞鹜文楷，可切回系统默认字体。 */
+    var lyricFont: LyricFont
+        get() {
+            val name = prefs.getString(KEY_LYRIC_FONT, null)
+            return LyricFont.entries.firstOrNull { it.name == name } ?: LyricFont.LXGW_WENKAI
+        }
+        set(value) = prefs.edit().putString(KEY_LYRIC_FONT, value.name).apply()
+
+    /**
+     * 歌词同步偏移（毫秒）：正值歌词提前显示，负值延后。
+     * 有些歌的逐字时间轴跟音频对不齐（普遍提前/延后几十到几百毫秒），
+     * 这里给用户一个整体微调的手柄，不用等词库修正。
+     */
+    var lyricOffsetMs: Int
+        get() = prefs.getInt(KEY_LYRIC_OFFSET_MS, 0)
+        set(value) = prefs.edit().putInt(KEY_LYRIC_OFFSET_MS, value.coerceIn(-3000, 3000)).apply()
+
     private companion object {
         const val KEY_DYNAMIC_COLOR = "dynamic_color"
         const val KEY_FOLLOW_COVER_COLOR = "follow_cover_color"
@@ -149,6 +176,8 @@ class SettingsStore(context: Context) {
         const val KEY_LYRIC_SHOW_LINE_ROMANIZATION = "lyric_show_line_romanization"
         const val KEY_LYRIC_SHOW_WORD_ROMANIZATION = "lyric_show_word_romanization"
         const val KEY_LYRIC_SPRING_PRESET = "lyric_spring_preset"
+        const val KEY_LYRIC_FONT = "lyric_font"
+        const val KEY_LYRIC_OFFSET_MS = "lyric_offset_ms"
     }
 }
 
