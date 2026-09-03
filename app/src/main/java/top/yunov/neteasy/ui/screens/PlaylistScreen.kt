@@ -13,10 +13,13 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -143,70 +146,79 @@ fun PlaylistScreen(playlistId: Long, repository: NcmRepository, player: PlayerCo
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            modifier =
-            Modifier
-                .fillMaxSize()
-                // 全屏覆盖层，Scaffold 的 insets 罩不到这里，自己处理状态栏/手势导航栏
-                .windowInsetsPadding(WindowInsets.systemBars)
-        ) {
-            when {
-                loading ->
-                    // 加载指示器盖在整页内容上，按规范用带容器变体提供对比
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        ContainedLoadingIndicator()
-                    }
-                error != null ->
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("加载失败：$error")
-                            FilledTonalIconButton(onClick = onBack, modifier = Modifier.padding(top = 12.dp)) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                            }
+        // 之前整个 Column 套了一层 windowInsetsPadding(systemBars)，等于上下两条系统栏的高度都从
+        // 页面内容里抠掉了一块——不只是状态栏底下那一截空白，连头图那块渐变色都被逼得没法贴到
+        // 屏幕最顶上，看着像整页内容被上下各挤掉一条边。真正该做的是：头图渐变背景一路铺到
+        // 屏幕最顶（不吃状态栏 inset），只有里面的返回按钮/文字这些需要躲开状态栏图标的内容才
+        // 单独加 statusBars padding；底部同理，交给 LazyColumn 的 contentPadding 处理，
+        // 让背景色和列表都能滚动到手势导航栏底下，而不是被一整块 Column 的 inset 拦在上面。
+        when {
+            loading ->
+                // 加载指示器盖在整页内容上，按规范用带容器变体提供对比；这个状态没有可滚动内容，
+                // 整个 Box 直接吃 systemBars padding 就行，不涉及「头图背景要不要贴边」的问题
+                Box(
+                    modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars),
+                    contentAlignment = Alignment.Center
+                ) {
+                    ContainedLoadingIndicator()
+                }
+            error != null ->
+                Box(
+                    modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("加载失败：$error")
+                        FilledTonalIconButton(onClick = onBack, modifier = Modifier.padding(top = 12.dp)) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                         }
                     }
-                else -> {
-                    val pl = detail
-                    PullToRefreshBox(
-                        isRefreshing = refreshing,
-                        onRefresh = {
-                            scope.launch {
-                                refreshing = true
-                                fetch(forceRefresh = true)
-                                refreshing = false
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize()
+                }
+            else -> {
+                val pl = detail
+                PullToRefreshBox(
+                    isRefreshing = refreshing,
+                    onRefresh = {
+                        scope.launch {
+                            refreshing = true
+                            fetch(forceRefresh = true)
+                            refreshing = false
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        // 底部同时吃手势导航栏的实际高度 + 96dp 悬浮 Minibar 的净空，
+                        // 这样最后几首歌能滚动到系统导航栏下面，而不是被一块固定 inset 拦住
+                        contentPadding =
+                        PaddingValues(
+                            bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 96.dp
+                        )
                     ) {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            // 底部留白让最后几首歌不会被悬浮 Minibar 挡住，同上
-                            contentPadding = PaddingValues(bottom = 96.dp)
-                        ) {
-                            if (pl != null) {
-                                item {
-                                    PlaylistHeader(
-                                        pl = pl,
-                                        headerColor = headerColor,
-                                        onBack = onBack,
-                                        onPlayAll = {
-                                            if (songs.isNotEmpty()) {
-                                                player.playQueue(songs.map { it.toPlayerSong() }, 0)
-                                            }
+                        if (pl != null) {
+                            item {
+                                PlaylistHeader(
+                                    pl = pl,
+                                    headerColor = headerColor,
+                                    onBack = onBack,
+                                    onPlayAll = {
+                                        if (songs.isNotEmpty()) {
+                                            player.playQueue(songs.map { it.toPlayerSong() }, 0)
                                         }
-                                    )
-                                }
-                            }
-                            itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
-                                PlaylistSongRow(
-                                    index = index + 1,
-                                    song = song,
-                                    onClick = {
-                                        player.playQueue(songs.map { it.toPlayerSong() }, index)
-                                    },
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 3.dp)
+                                    }
                                 )
                             }
+                        }
+                        itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
+                            PlaylistSongRow(
+                                index = index + 1,
+                                song = song,
+                                onClick = {
+                                    player.playQueue(songs.map { it.toPlayerSong() }, index)
+                                },
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 3.dp)
+                            )
                         }
                     }
                 }
@@ -236,7 +248,14 @@ private fun PlaylistHeader(pl: Playlist, headerColor: Color?, onBack: () -> Unit
                 )
             )
     ) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Column(
+            modifier =
+            Modifier
+                // 渐变背景（外层 Box）本身贴着屏幕最顶，这里只让「返回按钮往下的内容」躲开状态栏，
+                // 背景色能一路铺到状态栏底下，而不是整块头图被状态栏的高度顶下去一截
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
             FilledTonalIconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
             }
