@@ -10,6 +10,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -23,8 +24,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items as listItems
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
+import androidx.compose.material3.carousel.rememberCarouselState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -79,8 +81,9 @@ import top.yunov.neteasy.ui.theme.ExpressiveMotion
  * 版式改版（2026-09）：原来「推荐歌单」用 2 列网格铺开，卡片下面两行文案跟下一行卡片
  * 挨得太近、观感拥挤；大厂首页这块清一色是横向滑动卡片流，不是网格——改成跟排行榜/
  * 每日推荐单曲一样的 LazyRow，行高只取决于这一行自己，不会有网格「按最高的那个对齐」
- * 导致的拥挤问题。Banner 也从简单 LazyRow 换成真正的居中露边分页轮播（HorizontalPager
- * + 圆点指示器 + 自动轮播），不再是硬切在屏幕边缘的裁切效果。
+ * 导致的拥挤问题。Banner 也从简单 LazyRow 换成 MD3 官方 Carousel 组件（HorizontalMultiBrowseCarousel：
+ * 大图居中 + 两侧各露一截，随手指滑动连续伸缩遮罩，是官方 Material 3 轮播组件自带的效果），
+ * 并且做成首尾相连的无限循环——划到最后一张继续划会自然接回第一张，不会撞墙。
  * 配色上不再给快捷卡片写死橙红渐变——改用当前 colorScheme 的 primary/tertiary 等，
  * 封面取色开启时快捷卡片会跟着一起变色，符合「跟随封面动态取色为主」的方向。
  *
@@ -358,50 +361,86 @@ private fun SectionHeader(title: String, modifier: Modifier = Modifier, onMore: 
 }
 
 /**
- * Banner 轮播：真正的分页轮播（居中当前张 + 左右各露一点下一/上一张），配圆点指示器 +
- * 自动轮播（4s 一张，手动划走后计时器跟着重新排期，不会跟手势打架）。
- * 之前用 LazyRow 硬摆一排、右侧固定留白 40dp，视觉上是「硬切在屏幕边缘」而不是真正的
- * 分页轮播——网易云/QQ音乐首页 Banner 都是这种居中露边 + 指示器的样式。
+ * Banner 轮播：MD3 官方 Carousel 组件（多浏览布局）——大图居中占屏幕大部分宽度，
+ * 左右各露一截下一张/上一张，指尖拖动时遮罩随滚动位置连续伸缩（组件自带，不用自己写），
+ * 圆角遮罩、层级效果都是官方组件本来的样子。之前是自己拿 LazyRow 摆一排、右侧固定留白，
+ * 效果是硬切在屏幕边缘，不是真正的 MD3 轮播。
+ *
+ * 无限循环：Carousel 本身没有「划到底自动接回第一张」的开关，用的是社区通用的取巧方案——
+ * itemCount 开一个远大于真实数量的「虚拟总数」（真实张数 ×200），初始位置停在虚拟区间的
+ * 正中央（且是真实张数的整数倍，保证初始显示的还是第一张），内容渲染时用 index % 真实张数
+ * 取实际的那一张。往任意方向连续划几百次才会碰到虚拟区间的边界，正常使用等同于无限循环。
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BannerPager(banners: List<Banner>) {
-    val pagerState = rememberPagerState(pageCount = { banners.size })
-    // key 里带上 currentPage：每次翻页（不管是手动划还是自动轮播触发的）都重新起一个
-    // 4s 倒计时，翻页之间的间隔永远是「稳定在当前页 4s 后才切换」，不会因为自动触发的
-    // 那次翻页而让下一次计时错乱。
-    LaunchedEffect(pagerState.currentPage, banners.size) {
-        if (banners.size > 1) {
-            delay(4000)
-            pagerState.animateScrollToPage((pagerState.currentPage + 1) % banners.size)
+    val realCount = banners.size
+    if (realCount == 0) return
+    // 只有 1 张时循环没有意义（划来划去都是它自己），虚拟总数直接等于真实数量，
+    // 顺带也让下面的指示器/自动轮播逻辑因为 realCount > 1 为 false 自然跳过。
+    val virtualCount = if (realCount > 1) realCount * 200 else realCount
+    // 必须是 realCount 的整数倍，不然初始渲染的第一张不是 banners[0]，用户会先看到中间某一张
+    val startItem = remember(realCount) { (virtualCount / 2 / realCount) * realCount }
+    val carouselState = rememberCarouselState(initialItem = startItem) { virtualCount }
+
+    // 之前拿 carouselState.currentItem 当 LaunchedEffect 的 key：滚动动画进行中 currentItem 会连续
+    // 更新，等于自动轮播这个协程一启动滚动、currentItem 一变化，就把 key 变了触发 LaunchedEffect
+    // 重启——而重启会直接取消掉正在跑的这次 animateScrollToItem，动画被自己腰斩，卡在两张图都
+    // 展开一半的过渡态出不来（截图里自动轮播那张就是这个被打断的状态）。手动划走不走这段代码
+    // （走系统自带的 fling+snap），所以是正常的。
+    // 改成只在 realCount 变化时启动一次的长循环，循环体自己 delay+滚动，不会被自身的滚动打断；
+    // 用 isScrollInProgress 判断一下用户是不是正在手动划，是的话这一轮就跳过，避免和手势抢屏幕。
+    LaunchedEffect(realCount) {
+        if (realCount > 1) {
+            while (true) {
+                delay(4000)
+                if (!carouselState.isScrollInProgress) {
+                    carouselState.animateScrollToItem(carouselState.currentItem + 1)
+                }
+            }
         }
     }
+
     Column {
-        HorizontalPager(
-            state = pagerState,
-            contentPadding = PaddingValues(horizontal = 28.dp),
-            pageSpacing = 12.dp,
-            modifier = Modifier.fillMaxWidth()
-        ) { page ->
-            val banner = banners[page]
-            AsyncImage(
-                model = banner.picUrl.thumbnail(1200, 600),
-                contentDescription = banner.typeTitle,
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            // 0.84 算出来的宽度还是留了两张小图的余地（大图+中图+一条极窄的边）；抬到 0.92，
+            // 除了大图之外的剩余空间只够放一个官方默认宽度的小图（CarouselDefaults 的
+            // minSmallItemWidth/maxSmallItemWidth 约 40~56dp），中间那张「中图」直接被挤没，
+            // 就是「1 张展开 + 1 条很窄的下一张」。
+            val itemWidth = maxWidth * 0.92f
+            HorizontalMultiBrowseCarousel(
+                state = carouselState,
+                preferredItemWidth = itemWidth,
+                itemSpacing = 10.dp,
+                contentPadding = PaddingValues(horizontal = 16.dp),
                 modifier =
                 Modifier
                     .fillMaxWidth()
-                    .aspectRatio(2.1f)
-                    .clip(MaterialTheme.shapes.extraLarge),
-                contentScale = ContentScale.Crop
-            )
+                    .height(180.dp)
+            ) { index ->
+                val banner = banners[index % realCount]
+                AsyncImage(
+                    model = banner.picUrl.thumbnail(1200, 600),
+                    contentDescription = banner.typeTitle,
+                    modifier =
+                    Modifier
+                        .fillMaxSize()
+                        // 官方遮罩 modifier：随这张卡片当前的滚动位置（大图/中图/小图）连续
+                        // 变化圆角遮罩范围，是 Carousel「伸缩感」的关键，自己用 clip 做不出这个效果
+                        .maskClip(MaterialTheme.shapes.extraLarge),
+                    contentScale = ContentScale.Crop
+                )
+            }
         }
-        if (banners.size > 1) {
+        if (realCount > 1) {
+            val activeIndex = carouselState.currentItem % realCount
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                repeat(banners.size) { index ->
-                    val selected = pagerState.currentPage == index
+                repeat(realCount) { index ->
+                    val selected = activeIndex == index
                     val dotWidth by animateDpAsState(
                         targetValue = if (selected) 20.dp else 6.dp,
                         // ExpressiveMotion 里的弹簧 token 都是 SpringSpec<Float>（给颜色/透明度/位移用），
