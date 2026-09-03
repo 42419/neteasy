@@ -1,11 +1,9 @@
 package top.yunov.neteasy.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,6 +12,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -63,6 +62,10 @@ import top.yunov.neteasy.ui.theme.ButtonShape
  *
  * 数据源是 /recommend/songs（需要登录），跟首页那份是同一个接口，这里独立再拉一次，
  * 不依赖首页已经加载过的状态（用户可能是重进这个页面，首页的数据不一定还在）。
+ *
+ * 歌曲行用的是歌单详情页那套 [IndexedSongRow]（序号 + 时长），不是搜索页那个大圆形播放键
+ * 的 [SongRow]——之前这页一直没跟着歌单详情页一起改，还是老样式，现在补上，两个「有序歌曲
+ * 列表」页面（歌单详情、每日推荐）视觉语言保持一致。
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -86,34 +89,39 @@ fun DailyRecommendScreen(repository: NcmRepository, player: PlayerController, on
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier =
-                Modifier
-                    .fillMaxWidth()
-                    // 只让这一行返回栏躲开状态栏——原来是整个 Column 套 systemBars，等于把状态栏
-                    // +手势导航栏两条的高度都从页面内容区域里永久抠掉，下面 LazyColumn 那截头图
-                    // 渐变卡片、乃至整页内容都被上下各挤掉一条边
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                FilledTonalIconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                }
-            }
-
             when {
+                // loading/error/暂无推荐这三个状态没有渐变头图可用，各自的 Box 自己吃 systemBars，
+                // error/empty 里另外塞一个返回按钮（不然用户会卡在这个状态出不去）
                 loading ->
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Box(
+                        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars),
+                        contentAlignment = Alignment.Center
+                    ) {
                         ContainedLoadingIndicator()
                     }
                 error != null ->
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("加载失败：$error")
+                    Box(
+                        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("加载失败：$error")
+                            FilledTonalIconButton(onClick = onBack, modifier = Modifier.padding(top = 12.dp)) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                            }
+                        }
                     }
                 songs.isEmpty() ->
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("暂无推荐，登录后查看", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Box(
+                        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("暂无推荐，登录后查看", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            FilledTonalIconButton(onClick = onBack, modifier = Modifier.padding(top = 12.dp)) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                            }
+                        }
                     }
                 else ->
                     LazyColumn(
@@ -123,10 +131,13 @@ fun DailyRecommendScreen(repository: NcmRepository, player: PlayerController, on
                         contentPadding =
                         PaddingValues(
                             bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 96.dp
-                        ),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        )
                     ) {
                         item {
+                            // 返回按钮之前是 LazyColumn 外面单独一条固定栏，跟这张渐变头图卡片是两块
+                            // 东西——渐变怎么改都贴不到屏幕最顶，因为它上面永远压着那条固定栏。改成
+                            // 跟歌单详情页一样，把返回按钮塞进渐变 Column 内部，渐变 Box 本身不吃
+                            // 顶部 inset（一路铺到状态栏底下），只有里面的返回按钮单独吃 statusBars
                             Column(
                                 modifier =
                                 Modifier
@@ -136,11 +147,16 @@ fun DailyRecommendScreen(repository: NcmRepository, player: PlayerController, on
                                             listOf(Color(0xFFFFB74D).copy(alpha = 0.5f), MaterialTheme.colorScheme.background)
                                         )
                                     )
+                                    .windowInsetsPadding(WindowInsets.statusBars)
                                     .padding(horizontal = 20.dp, vertical = 16.dp)
                             ) {
+                                FilledTonalIconButton(onClick = onBack) {
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                                }
                                 Text(
                                     LocalDate.now().format(DateTimeFormatter.ofPattern("dd / MM")),
-                                    style = MaterialTheme.typography.displaySmall
+                                    style = MaterialTheme.typography.displaySmall,
+                                    modifier = Modifier.padding(top = 12.dp)
                                 )
                                 Text(
                                     "根据你的音乐口味生成，每日 6:00 更新",
@@ -158,16 +174,21 @@ fun DailyRecommendScreen(repository: NcmRepository, player: PlayerController, on
                                         contentDescription = null,
                                         modifier = Modifier.size(18.dp)
                                     )
-                                    Text("播放全部", modifier = Modifier.padding(start = 6.dp))
+                                    Text(
+                                        if (songs.isNotEmpty()) "播放全部 (${songs.size})" else "播放全部",
+                                        modifier = Modifier.padding(start = 6.dp)
+                                    )
                                 }
                             }
                         }
                         itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
-                            SongRow(
+                            IndexedSongRow(
+                                index = index + 1,
                                 song = song,
                                 onClick = {
                                     player.playQueue(songs.map { it.toPlayerSong() }, index)
-                                }
+                                },
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 3.dp)
                             )
                         }
                     }

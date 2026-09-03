@@ -87,7 +87,7 @@ import top.yunov.neteasy.ui.theme.extractCoverSeedColor
  * 现在都补上了（改动见 Models.kt 的 parsePlaylistDetail），头图更接近网易云歌单页的
  * 信息密度。顶部原来单独一行「歌单」大标题跟头图里真正的歌单名重复，去掉了，只留一个
  * 悬浮返回按钮（官方 App 这块通常也是半透明返回箭头，标题信息都在头图本体里）。
- * 歌曲行新增序号 + 时长，从跟搜索结果共用的 [SongRow] 换成本页专属的 [PlaylistSongRow]——
+ * 歌曲行新增序号 + 时长，从跟搜索结果共用的 [SongRow] 换成 [IndexedSongRow]——
  * 序号是歌单场景特有的东西，搜索结果那边不需要，不去改共用组件影响搜索页。
  *
  * 加载策略：
@@ -211,7 +211,7 @@ fun PlaylistScreen(playlistId: Long, repository: NcmRepository, player: PlayerCo
                             }
                         }
                         itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
-                            PlaylistSongRow(
+                            IndexedSongRow(
                                 index = index + 1,
                                 song = song,
                                 onClick = {
@@ -388,13 +388,16 @@ private fun TagChip(text: String) {
 }
 
 /**
- * 歌单详情页专属的歌曲行：序号 + 封面 + 标题/歌手 + 时长。跟搜索结果共用的 [SongRow] 相比
- * 多了序号、少了那个占位用的圆形播放图标（整行本来就能点，同样的播放动作没必要在行尾再放
- * 一个图标占地方，腾出来放时长——网易云/QQ音乐的歌单列表都是「序号+标题+时长」这个结构，
- * 不是「封面+标题+播放键」）。序号是歌单场景特有的信息，不下沉到共用组件里影响搜索页。
+ * 序号歌曲行：序号 + 封面 + 标题/歌手 + 时长。跟搜索结果共用的 [SongRow] 相比多了序号、
+ * 少了那个占位用的圆形播放图标（整行本来就能点，同样的播放动作没必要在行尾再放一个图标
+ * 占地方，腾出来放时长——网易云/QQ音乐的歌单/日推列表都是「序号+标题+时长」这个结构，
+ * 不是「封面+标题+播放键」）。序号是「有序歌曲列表」场景特有的信息，不下沉到 [SongRow]
+ * 里影响不需要序号的搜索页。
+ * 歌单详情页（[PlaylistScreen]）、每日推荐页（[DailyRecommendScreen]）共用这一个，
+ * 标成 internal 而不是 private，因为要跨文件（同包）用。
  */
 @Composable
-private fun PlaylistSongRow(index: Int, song: Song, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun IndexedSongRow(index: Int, song: Song, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
