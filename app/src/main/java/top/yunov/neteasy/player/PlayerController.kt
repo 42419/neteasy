@@ -32,6 +32,7 @@ import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.AudioQuality
 import top.yunov.neteasy.data.LyricRepository
 import top.yunov.neteasy.data.NcmRepository
+import top.yunov.neteasy.data.PlaybackStateStore
 import top.met6.amll.LyricLine
 
 /** 循环模式：不循环（播完队列停止）/ 列表循环（播完最后一首回到第一首）/ 单曲循环 */
@@ -101,6 +102,14 @@ class PlayerController(
     private var loadGeneration = 0 // 防止旧的异步 URL 解析在新一首播放请求之后回来，覆盖新状态
     private var lyricLoadGeneration = 0 // 防止旧的歌词请求在切换歌曲后回来，覆盖新歌歌词
     private var qualityLevel: String = initialQuality.level
+
+    // ---------- 播放队列持久化（关闭 App 后能续播） ----------
+
+    private val playbackStateStore = PlaybackStateStore(appContext)
+
+    // 每 20 个进度 tick（约 10s）落一次盘，不是每 500ms 都写 SharedPreferences——
+    // 位置数据没必要那么精确，省下高频磁盘 IO
+    private var persistTickCount = 0
 
     /** 当前偏好音质（用户设置或上次手动选择），作为每首歌开始播放时的“首选”档位 */
     private val preferredQuality: AudioQuality
@@ -225,6 +234,36 @@ class PlayerController(
         scope.launch {
             state.collect { updateMediaSession(it) }
         }
+        restorePersistedQueue()
+    }
+
+    /**
+     * 冷启动时把上次退出前的播放队列/下标/进度/循环模式恢复出来，只恢复展示（歌名/封面/
+     * 进度条位置），不预先解析播放 URL、不占用 MediaPlayer——很多时候用户开 App 只是想看看，
+     * 不一定要接着听，犯不着一启动就打一发网络请求。真正的 URL 解析等用户点了播放才发生
+     * （见 [toggle] 里 mediaPlayer == null 那个分支）。
+     */
+    private fun restorePersistedQueue() {
+        val restored = playbackStateStore.load() ?: return
+        val song = restored.queue.getOrNull(restored.queueIndex) ?: return
+        queue = restored.queue
+        queueIndex = restored.queueIndex
+        _state.value =
+            _state.value.copy(
+                isPlaying = false,
+                song = song,
+                positionMs = restored.positionMs,
+                durationMs = 0,
+                queueIndex = restored.queueIndex,
+                queueSize = restored.queue.size,
+                queue = restored.queue,
+                repeatMode = restored.repeatMode
+            )
+    }
+
+    /** 把当前队列/下标/播放位置/循环模式落盘；队列为空则清掉之前存的（见 [PlaybackStateStore.save]）。 */
+    private fun persistPlaybackState() {
+        playbackStateStore.save(queue, queueIndex, _state.value.positionMs, _state.value.repeatMode)
     }
 
     private fun updateMediaSession(s: PlayerUiState) {
@@ -393,6 +432,7 @@ class PlayerController(
                 RepeatMode.ONE -> RepeatMode.OFF
             }
         _state.value = _state.value.copy(repeatMode = next)
+        persistPlaybackState()
     }
 
     /** 跳转到队列中指定下标的歌曲（「播放队列」面板点某一首直接播） */
@@ -411,7 +451,14 @@ class PlayerController(
     }
 
     fun toggle() {
-        if (_state.value.isPlaying) pauseInternal() else resumeInternal()
+        when {
+            _state.value.isPlaying -> pauseInternal()
+            // 冷启动恢复的队列还没真正准备好 MediaPlayer（见 restorePersistedQueue 的注释——
+            // 恢复时故意不发网络请求），这时候点播放才去真正解析 URL 并从恢复的位置续播
+            mediaPlayer == null && _state.value.song != null && queueIndex in queue.indices ->
+                playCurrentQueueEntry(resumeAtMs = _state.value.positionMs)
+            else -> resumeInternal()
+        }
     }
 
     private fun pauseInternal() {
@@ -419,6 +466,7 @@ class PlayerController(
         if (p.isPlaying) {
             p.pause()
             _state.value = _state.value.copy(isPlaying = false)
+            persistPlaybackState()
         }
     }
 
@@ -498,10 +546,12 @@ class PlayerController(
         _state.value = PlayerUiState(quality = _state.value.quality, repeatMode = _state.value.repeatMode)
         queue = emptyList()
         queueIndex = -1
+        // 用户从通知栏主动点了停止：这是明确的“不要了”，冷启动不该再把这份队列恢复回来
+        playbackStateStore.clear()
     }
 
     /** 解析队列里当前下标对应的歌曲 URL 并播放；异步解析期间已带上代际号防止过期回调乱序覆盖状态 */
-    private fun playCurrentQueueEntry() {
+    private fun playCurrentQueueEntry(resumeAtMs: Long = 0) {
         val song = queue.getOrNull(queueIndex) ?: return
         val myIndex = queueIndex
         val gen = ++loadGeneration
@@ -519,7 +569,14 @@ class PlayerController(
             // 解析期间用户可能又切了别的歌（连续点了好几首/上一首下一首连点），
             // 此时这个已经过期的结果不能再覆盖当前状态
             if (gen != loadGeneration) return@launch
-            playResolved(url, song, queueIndex = myIndex, queueSize = queue.size, playQuality = effective)
+            playResolved(
+                url,
+                song,
+                queueIndex = myIndex,
+                queueSize = queue.size,
+                resumeAtMs = resumeAtMs,
+                playQuality = effective
+            )
         }
     }
 
@@ -568,6 +625,7 @@ class PlayerController(
                 bufferedPositionMs = 0,
                 quality = playQuality
             )
+        persistPlaybackState()
         startPlayer(url, resumeAtMs, autoPlay)
     }
 
@@ -663,6 +721,7 @@ class PlayerController(
         progressJob?.cancel()
         progressJob = null
         val gen = ++tickerGeneration
+        persistTickCount = 0
         progressJob =
             scope.launch(Dispatchers.Main) {
                 while (isActive && tickerGeneration == gen) {
@@ -676,6 +735,13 @@ class PlayerController(
                                 positionMs = p.currentPosition.toLong(),
                                 durationMs = p.duration.toLong()
                             )
+                    }
+                    // 每 20 个 tick（约 10s）落一次盘，不是每 500ms 都写 SharedPreferences——
+                    // 播放进度没必要那么精确，省下高频磁盘 IO；万一进程突然被杀，最多丢十来秒进度
+                    persistTickCount++
+                    if (persistTickCount >= 20) {
+                        persistTickCount = 0
+                        persistPlaybackState()
                     }
                     delay(500)
                 }
