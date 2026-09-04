@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Refresh
@@ -55,6 +56,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import top.yunov.neteasy.data.AudioQuality
+import top.yunov.neteasy.data.CacheExpiryDays
+import top.yunov.neteasy.data.CacheSizeLimit
 import top.yunov.neteasy.data.ThemeMode
 import top.yunov.neteasy.data.UpdateUiState
 import top.yunov.neteasy.ui.components.DarkMode
@@ -85,6 +88,12 @@ fun SettingsScreen(
     currentVersion: String,
     defaultQuality: AudioQuality,
     onDefaultQualityChange: (AudioQuality) -> Unit,
+    autoCacheSongs: Boolean,
+    onAutoCacheSongsChange: (Boolean) -> Unit,
+    cacheSizeLimit: CacheSizeLimit,
+    onCacheSizeLimitChange: (CacheSizeLimit) -> Unit,
+    cacheExpiryDays: CacheExpiryDays,
+    onCacheExpiryDaysChange: (CacheExpiryDays) -> Unit,
     updateState: UpdateUiState,
     onCheckUpdate: () -> Unit,
     onStartDownload: () -> Unit,
@@ -95,6 +104,8 @@ fun SettingsScreen(
 ) {
     // 默认播放音质选择弹窗开关
     var qualityDialog by remember { mutableStateOf(false) }
+    var cacheSizeDialog by remember { mutableStateOf(false) }
+    var cacheExpiryDialog by remember { mutableStateOf(false) }
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
@@ -185,6 +196,42 @@ fun SettingsScreen(
                     title = "默认播放音质",
                     subtitle = "当前：${defaultQuality.label}",
                     modifier = Modifier.clickable { qualityDialog = true }
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                SettingsRowDivider()
+                SettingRow(
+                    icon = Icons.Filled.Download,
+                    title = "自动缓存歌曲",
+                    subtitle = "播放时保存到本地，下次播放同一首不用等联网"
+                ) {
+                    Switch(checked = autoCacheSongs, onCheckedChange = onAutoCacheSongsChange)
+                }
+                // 缓存上限/有效期在自动缓存关闭时也保留可调（用户可能只是想临时关掉，
+                // 之前存的缓存该怎么淘汰还是怎么淘汰，不因为开关状态隐藏这两项）
+                SettingsRowDivider()
+                SettingRow(
+                    icon = Icons.Filled.Storage,
+                    title = "歌曲缓存上限",
+                    subtitle = cacheSizeLimit.label,
+                    modifier = Modifier.clickable { cacheSizeDialog = true }
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                SettingsRowDivider()
+                SettingRow(
+                    icon = Icons.Filled.Refresh,
+                    title = "歌曲缓存有效期",
+                    subtitle = cacheExpiryDays.label,
+                    modifier = Modifier.clickable { cacheExpiryDialog = true }
                 ) {
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowForward,
@@ -302,6 +349,112 @@ fun SettingsScreen(
                 }
             },
             confirmButton = { TextButton(onClick = { qualityDialog = false }) { Text("关闭") } }
+        )
+    }
+
+    // 歌曲缓存上限选择弹窗
+    if (cacheSizeDialog) {
+        AlertDialog(
+            onDismissRequest = { cacheSizeDialog = false },
+            title = { Text("歌曲缓存上限") },
+            text = {
+                Column {
+                    CacheSizeLimit.entries.forEach { option ->
+                        Row(
+                            modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(MaterialTheme.shapes.medium)
+                                .clickable {
+                                    onCacheSizeLimitChange(option)
+                                    cacheSizeDialog = false
+                                }
+                                .padding(horizontal = 4.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                option.label,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color =
+                                if (option == cacheSizeLimit) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (option == cacheSizeLimit) {
+                                Icon(
+                                    Icons.Filled.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        "达到容量上限后会清理最早没再用过的歌曲缓存。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            },
+            confirmButton = { TextButton(onClick = { cacheSizeDialog = false }) { Text("关闭") } }
+        )
+    }
+
+    // 歌曲缓存有效期选择弹窗
+    if (cacheExpiryDialog) {
+        AlertDialog(
+            onDismissRequest = { cacheExpiryDialog = false },
+            title = { Text("歌曲缓存有效期") },
+            text = {
+                Column {
+                    CacheExpiryDays.entries.forEach { option ->
+                        Row(
+                            modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(MaterialTheme.shapes.medium)
+                                .clickable {
+                                    onCacheExpiryDaysChange(option)
+                                    cacheExpiryDialog = false
+                                }
+                                .padding(horizontal = 4.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                option.label,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color =
+                                if (option == cacheExpiryDays) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (option == cacheExpiryDays) {
+                                Icon(
+                                    Icons.Filled.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        "从缓存生成时间开始计算，过期后自动清理。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            },
+            confirmButton = { TextButton(onClick = { cacheExpiryDialog = false }) { Text("关闭") } }
         )
     }
 }

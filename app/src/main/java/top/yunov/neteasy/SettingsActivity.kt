@@ -62,6 +62,9 @@ class SettingsActivity : ComponentActivity() {
             var dynamicColor by remember { mutableStateOf(settings.dynamicColor) }
             var followCoverColor by remember { mutableStateOf(settings.followCoverColor) }
             var defaultQuality by remember { mutableStateOf(settings.preferredAudioQuality) }
+            var autoCacheSongs by remember { mutableStateOf(settings.autoCacheSongs) }
+            var cacheSizeLimit by remember { mutableStateOf(settings.cacheSizeLimit) }
+            var cacheExpiryDays by remember { mutableStateOf(settings.cacheExpiryDays) }
             var updateState by remember { mutableStateOf<UpdateUiState>(UpdateUiState.Idle) }
             // 下载完成后记下本地文件路径 + DownloadManager 的下载 id，点「安装」时要用
             var pendingApkPath by remember { mutableStateOf<String?>(null) }
@@ -115,6 +118,21 @@ class SettingsActivity : ComponentActivity() {
                         defaultQuality = it
                         // 同步给播放器：作为之后“新开始播放歌曲”的首选音质
                         app.playerController.setDefaultQuality(it)
+                    },
+                    autoCacheSongs = autoCacheSongs,
+                    onAutoCacheSongsChange = {
+                        settings.autoCacheSongs = it
+                        autoCacheSongs = it
+                    },
+                    cacheSizeLimit = cacheSizeLimit,
+                    onCacheSizeLimitChange = {
+                        settings.cacheSizeLimit = it
+                        cacheSizeLimit = it
+                    },
+                    cacheExpiryDays = cacheExpiryDays,
+                    onCacheExpiryDaysChange = {
+                        settings.cacheExpiryDays = it
+                        cacheExpiryDays = it
                     },
                     updateState = updateState,
                     onCheckUpdate = {

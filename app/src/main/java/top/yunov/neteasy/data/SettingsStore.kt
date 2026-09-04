@@ -56,6 +56,28 @@ enum class LyricSpringPreset(val label: String) {
 }
 
 /**
+ * 歌曲本地缓存容量上限——参考 Apple Music「自动缓存歌曲」设置里的几档（截图：自动管理/
+ * 512MB/1GB/2GB/5GB/无上限）。AUTO 没有做成"跟设备剩余空间联动"这种更精细的自适应算法，
+ * 简化成固定 2GB——多一档"自动"主要是照顾大厂 App 一贯的默认选项习惯，实际行为等同 2GB，
+ * 没有必要为了这一点观感去引入设备可用空间探测的复杂度。
+ */
+enum class CacheSizeLimit(val bytes: Long, val label: String) {
+    AUTO(2L * 1024 * 1024 * 1024, "自动管理"),
+    MB_512(512L * 1024 * 1024, "512 MB"),
+    GB_1(1L * 1024 * 1024 * 1024, "1 GB"),
+    GB_2(2L * 1024 * 1024 * 1024, "2 GB"),
+    GB_5(5L * 1024 * 1024 * 1024, "5 GB"),
+    UNLIMITED(Long.MAX_VALUE, "无上限")
+}
+
+/** 歌曲缓存有效期：超过这个时间没被播放过（用文件最后修改时间当"最近访问"）就当过期清掉。 */
+enum class CacheExpiryDays(val days: Int, val label: String) {
+    DAYS_7(7, "7 天"),
+    DAYS_30(30, "30 天"),
+    DAYS_90(90, "90 天")
+}
+
+/**
  * 用户设置（SharedPreferences 持久化）：
  * - themeMode：深色模式（跟随系统 / 浅色 / 深色）。默认跟随系统。
  * - dynamicColor：是否跟随系统动态取色（Material You）。默认开启；
@@ -92,6 +114,25 @@ class SettingsStore(context: Context) {
             return AudioQuality.entries.firstOrNull { it.level == level } ?: AudioQuality.EXHIGH
         }
         set(value) = prefs.edit().putString(KEY_AUDIO_QUALITY, value.level).apply()
+
+    /** 播放时是否自动把歌曲缓存到本地（下次播同一首/同一档音质直接读本地，不用等网络）。 */
+    var autoCacheSongs: Boolean
+        get() = prefs.getBoolean(KEY_AUTO_CACHE_SONGS, true)
+        set(value) = prefs.edit().putBoolean(KEY_AUTO_CACHE_SONGS, value).apply()
+
+    var cacheSizeLimit: CacheSizeLimit
+        get() {
+            val name = prefs.getString(KEY_CACHE_SIZE_LIMIT, null)
+            return CacheSizeLimit.entries.firstOrNull { it.name == name } ?: CacheSizeLimit.AUTO
+        }
+        set(value) = prefs.edit().putString(KEY_CACHE_SIZE_LIMIT, value.name).apply()
+
+    var cacheExpiryDays: CacheExpiryDays
+        get() {
+            val name = prefs.getString(KEY_CACHE_EXPIRY_DAYS, null)
+            return CacheExpiryDays.entries.firstOrNull { it.name == name } ?: CacheExpiryDays.DAYS_30
+        }
+        set(value) = prefs.edit().putString(KEY_CACHE_EXPIRY_DAYS, value.name).apply()
 
     // ---- 歌词渲染细节（AppleMusicLyricPlayerStyle 的可调部分）----
     // 数值型默认值均与目前 NowPlayingScreen 里写死的效果保持一致，
@@ -167,6 +208,9 @@ class SettingsStore(context: Context) {
         const val KEY_FOLLOW_COVER_COLOR = "follow_cover_color"
         const val KEY_THEME_MODE = "theme_mode"
         const val KEY_AUDIO_QUALITY = "audio_quality"
+        const val KEY_AUTO_CACHE_SONGS = "auto_cache_songs"
+        const val KEY_CACHE_SIZE_LIMIT = "cache_size_limit"
+        const val KEY_CACHE_EXPIRY_DAYS = "cache_expiry_days"
         const val KEY_LYRIC_ALIGN_POSITION = "lyric_align_position"
         const val KEY_LYRIC_WORD_FADE_WIDTH = "lyric_word_fade_width"
         const val KEY_LYRIC_ENABLE_BLUR = "lyric_enable_blur"

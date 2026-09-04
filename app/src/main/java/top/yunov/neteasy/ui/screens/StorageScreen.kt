@@ -38,7 +38,8 @@ import androidx.compose.ui.unit.dp
  * 存储空间页：参考网易云音乐官方「存储空间」页的版式（大数字 + 占用条 + 分项卡片），
  * 按本 App 实际的存储构成重新设计分类：
  * - 数据缓存：图片/歌单数据/临时文件等所有可安全清除、清了不影响使用的缓存合并展示
- * - 音乐缓存：本 App 播放是实时在线流式播放，不落盘缓存歌曲文件，恒为 0，纯说明用途
+ * - 音乐缓存：播放过的歌曲本地缓存（[top.yunov.neteasy.data.AudioCacheManager]），
+ *   容量上限/有效期在「设置 - 播放」里调，这里只负责展示占用大小 + 手动清空
  * - 必要文件：内嵌后端程序文件 + 安装包本身，App 运行必需，不提供清除
  */
 @Composable
@@ -51,6 +52,7 @@ fun StorageScreen(
     musicCacheBytes: Long,
     essentialFilesBytes: Long,
     onClearDataCache: () -> Unit,
+    onClearMusicCache: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -167,10 +169,11 @@ fun StorageScreen(
             StorageCard(
                 title = "音乐缓存",
                 sizeText = formatBytes(musicCacheBytes),
-                description = "播放采用实时在线流式播放，不会把歌曲文件缓存到本地，因此这里恒为 0，也没有可清理的内容。",
-                buttonText = "清理",
-                buttonEnabled = false,
-                onClick = {}
+                description = "播放过的歌曲会保存一份到本地，下次播放同一首不用再等联网加载；" +
+                    "容量上限、有效期可以在「设置 - 播放」里调。",
+                buttonText = "清空",
+                buttonEnabled = musicCacheBytes > 0,
+                onClick = onClearMusicCache
             )
 
             Spacer(modifier = Modifier.height(16.dp))

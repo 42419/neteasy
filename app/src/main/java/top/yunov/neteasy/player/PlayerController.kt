@@ -29,10 +29,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yunov.neteasy.data.AudioCacheManager
 import top.yunov.neteasy.data.AudioQuality
 import top.yunov.neteasy.data.LyricRepository
 import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.PlaybackStateStore
+import top.yunov.neteasy.data.SettingsStore
 import top.met6.amll.LyricLine
 
 /** 循环模式：不循环（播完队列停止）/ 列表循环（播完最后一首回到第一首）/ 单曲循环 */
@@ -110,6 +112,17 @@ class PlayerController(
     // 每 20 个进度 tick（约 10s）落一次盘，不是每 500ms 都写 SharedPreferences——
     // 位置数据没必要那么精确，省下高频磁盘 IO
     private var persistTickCount = 0
+
+    // ---------- 歌曲本地缓存（避免刚打开 App 点播放要等联网） ----------
+
+    /** 公开给「存储空间」页读取占用大小 / 提供手动清空入口，播放逻辑内部用同一个实例。 */
+    val audioCache = AudioCacheManager(appContext, SettingsStore(appContext))
+
+    init {
+        // App 启动时顺手清一遍过期缓存，不用等到下次播放同一首歌才触发；
+        // 后台执行，不阻塞 PlayerController 的构造/首次可用
+        scope.launch(Dispatchers.IO) { audioCache.clearExpired() }
+    }
 
     /** 当前偏好音质（用户设置或上次手动选择），作为每首歌开始播放时的“首选”档位 */
     private val preferredQuality: AudioQuality
@@ -559,6 +572,21 @@ class PlayerController(
         val effective = effectiveQuality(preferredQuality, song.availableQualities)
         val level = effective.level
         scope.launch {
+            // 本地缓存命中：直接用本地文件路径起播，跳过整个网络解析流程——这是“刚打开 App
+            // 点播放不用等”的关键，MediaPlayer 对本地文件 prepare 几乎是瞬时的
+            val cached = withContext(Dispatchers.IO) { audioCache.getCachedFile(song.id, level) }
+            if (cached != null) {
+                if (gen != loadGeneration) return@launch
+                playResolved(
+                    cached.absolutePath,
+                    song,
+                    queueIndex = myIndex,
+                    queueSize = queue.size,
+                    resumeAtMs = resumeAtMs,
+                    playQuality = effective
+                )
+                return@launch
+            }
             val url =
                 try {
                     withContext(Dispatchers.IO) { repository.songUrl(song.id, level) }
@@ -577,6 +605,11 @@ class PlayerController(
                 resumeAtMs = resumeAtMs,
                 playQuality = effective
             )
+            // 没命中缓存但解析到了真实播放地址：后台顺手落一份缓存，不 await、不阻塞已经
+            // 开始的这次播放，下次同一首/同一档音质就能直接命中上面那个分支
+            if (!url.isNullOrBlank()) {
+                scope.launch(Dispatchers.IO) { audioCache.cacheAsync(song.id, level, url) }
+            }
         }
     }
 

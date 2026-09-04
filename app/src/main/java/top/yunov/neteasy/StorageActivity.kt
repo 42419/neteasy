@@ -41,12 +41,18 @@ class StorageActivity : ComponentActivity() {
             var deviceTotalBytes by remember { mutableLongStateOf(0L) }
             var deviceFreeBytes by remember { mutableLongStateOf(0L) }
             var dataCacheBytes by remember { mutableLongStateOf(0L) }
+            var musicCacheBytes by remember { mutableLongStateOf(0L) }
             var essentialFilesBytes by remember { mutableLongStateOf(0L) }
             val scope = rememberCoroutineScope()
 
             suspend fun refresh() {
                 withContext(Dispatchers.IO) {
-                    val cacheDirBytes = cacheDir.sizeRecursively()
+                    val musicCache = app.playerController.audioCache.currentSizeBytes()
+                    // cacheDir 里现在混了两种东西：Coil 图片缓存 + 咱们自己的歌曲音频缓存
+                    // （AudioCacheManager，见 audio_cache 子目录）。歌曲缓存单独算一栏「音乐缓存」，
+                    // 不能被算进「数据缓存」，不然总占用没错但两个数字对不上、清数据缓存那个按钮
+                    // 也会把还没过期的歌曲缓存一起清掉
+                    val cacheDirBytes = cacheDir.sizeRecursively() - musicCache
                     val tempBytes = File(filesDir, "tmp").sizeRecursively()
                     val nodeProjectBytes = File(filesDir, "nodejs-project").sizeRecursively()
                     val filesDirTotal = filesDir.sizeRecursively()
@@ -60,8 +66,9 @@ class StorageActivity : ComponentActivity() {
                         }
 
                     dataCacheBytes = cacheDirBytes + tempBytes + otherFilesDirBytes
+                    musicCacheBytes = musicCache
                     essentialFilesBytes = nodeProjectBytes + apkBytes
-                    appTotalBytes = dataCacheBytes + essentialFilesBytes
+                    appTotalBytes = dataCacheBytes + musicCacheBytes + essentialFilesBytes
 
                     val statFs = StatFs(Environment.getDataDirectory().path)
                     deviceTotalBytes = statFs.totalBytes
@@ -77,7 +84,7 @@ class StorageActivity : ComponentActivity() {
                     deviceUsedByOthersBytes = (deviceTotalBytes - deviceFreeBytes - appTotalBytes).coerceAtLeast(0L),
                     deviceFreeBytes = deviceFreeBytes,
                     dataCacheBytes = dataCacheBytes,
-                    musicCacheBytes = 0L,
+                    musicCacheBytes = musicCacheBytes,
                     essentialFilesBytes = essentialFilesBytes,
                     onClearDataCache = {
                         scope.launch {
@@ -88,11 +95,19 @@ class StorageActivity : ComponentActivity() {
                                 val coilDirName = loader.diskCache?.directory?.name
                                 loader.diskCache?.clear()
                                 cacheDir.listFiles()?.forEach { f ->
-                                    if (f.name != coilDirName) f.deleteRecursively()
+                                    // audio_cache 是歌曲缓存（AudioCacheManager 自己的目录），单独有
+                                    // 「音乐缓存」那张卡片和自己的清空按钮，这里不连带清掉
+                                    if (f.name != coilDirName && f.name != "audio_cache") f.deleteRecursively()
                                 }
                                 File(filesDir, "tmp").listFiles()?.forEach { it.deleteRecursively() }
                                 app.repository.clearPlaylistCache()
                             }
+                            refresh()
+                        }
+                    },
+                    onClearMusicCache = {
+                        scope.launch {
+                            withContext(Dispatchers.IO) { app.playerController.audioCache.clearAll() }
                             refresh()
                         }
                     },
