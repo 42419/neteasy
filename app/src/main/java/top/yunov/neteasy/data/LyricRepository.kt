@@ -35,6 +35,11 @@ class LyricRepository(context: Context, private val ncm: NcmRepository) {
     private val memory = ConcurrentHashMap<Long, List<LyricLine>>()
     private val negativeTtlMs = 72L * 60 * 60 * 1000 // 负缓存 72h（对齐 SPlayer-Next）
 
+    /** 磁盘长期缓存清空（「存储空间」页「清理数据缓存」用）；内存缓存不用管，App 还在跑就会有。 */
+    fun clearCache() {
+        cacheDir.listFiles()?.forEach { it.deleteRecursively() }
+    }
+
     /** 取某首歌的歌词（[LyricLine] 列表，可能为空）。IO 线程外调用（内部自行切 IO）。 */
     suspend fun load(songId: Long): List<LyricLine> {
         memory[songId]?.let { return it }
