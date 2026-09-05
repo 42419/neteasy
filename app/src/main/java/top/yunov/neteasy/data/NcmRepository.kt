@@ -209,4 +209,11 @@ class NcmRepository(private val api: ApiClient) {
 
     /** 网易云歌词（/lyric）：返回含 lrc/tlyric 的原始 JSON，用作歌词兜底解析。 */
     suspend fun lyric(id: Long): JSONObject = api.get("/lyric", mapOf("id" to "$id"))
+
+    /**
+     * 网易云新版歌词（/lyric/new）：同时含 yrc（逐字）、ytlrc/yromalrc（逐字对齐的翻译/罗马音）
+     * 以及兜底的 lrc/tlyric。覆盖率远高于 AMLL TTML 库（几乎所有歌都有 yrc），
+     * 作为逐字歌词的主力来源，TTML 仅在库内命中时作为质量更高的覆盖版本。
+     */
+    suspend fun lyricNew(id: Long): JSONObject = api.get("/lyric/new", mapOf("id" to "$id"))
 }
