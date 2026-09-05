@@ -216,4 +216,25 @@ class NcmRepository(private val api: ApiClient) {
      * 作为逐字歌词的主力来源，TTML 仅在库内命中时作为质量更高的覆盖版本。
      */
     suspend fun lyricNew(id: Long): JSONObject = api.get("/lyric/new", mapOf("id" to "$id"))
+
+    /** 红心/取消红心一首歌（/like?id=&like=true|false），成功返回 code 200。 */
+    suspend fun like(id: Long, like: Boolean): Boolean =
+        try {
+            api.get("/like", mapOf("id" to "$id", "like" to "$like")).optInt("code", -1) == 200
+        } catch (e: Exception) {
+            false
+        }
+
+    /** 已喜欢音乐 id 列表（/likelist?uid=），用于给歌曲行/播放页标红心。 */
+    suspend fun likeList(uid: Long): Set<Long> =
+        try {
+            val ids = api.get("/likelist", mapOf("uid" to "$uid")).optJSONArray("ids")
+            if (ids == null) {
+                emptySet()
+            } else {
+                (0 until ids.length()).map { ids.optLong(it) }.toSet()
+            }
+        } catch (e: Exception) {
+            emptySet()
+        }
 }

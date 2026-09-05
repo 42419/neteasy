@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import top.yunov.neteasy.bridge.NodeService
 import top.yunov.neteasy.data.ApiClient
+import top.yunov.neteasy.data.LikeRepository
 import top.yunov.neteasy.data.LyricRepository
 import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.SettingsStore
@@ -28,6 +29,7 @@ class NeteasyApp : Application() {
     val apiClient: ApiClient by lazy { ApiClient(this) }
     val repository: NcmRepository by lazy { NcmRepository(apiClient) }
     val lyricRepository: LyricRepository by lazy { LyricRepository(this, repository) }
+    val likeRepository: LikeRepository by lazy { LikeRepository(appScope, apiClient, repository) }
     val playerController: PlayerController by lazy {
         PlayerController(
             scope = appScope,

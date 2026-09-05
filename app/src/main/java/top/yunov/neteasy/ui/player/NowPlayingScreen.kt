@@ -20,7 +20,9 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
@@ -81,6 +83,9 @@ fun NowPlayingScreen(
     onQualityChange: (AudioQuality) -> Unit,
     onCycleRepeat: () -> Unit,
     onCollapse: () -> Unit,
+    /** 当前歌曲是否已喜欢，驱动顶部红心图标的填充状态 */
+    liked: Boolean = false,
+    onToggleLike: () -> Unit = {},
     /** 歌词渲染样式，由调用方（PlayerOverlay）按 SettingsStore 里的歌词设置组装好传进来。 */
     lyricStyle: AppleMusicLyricPlayerStyle = AppleMusicLyricPlayerStyle(),
     /** 已按显示设置（翻译/音译开关）裁剪过的歌词行；默认直接用未裁剪的原始数据。 */
@@ -112,6 +117,14 @@ fun NowPlayingScreen(
                     Icon(Icons.Filled.ExpandMore, contentDescription = "收起")
                 }
                 Spacer(modifier = Modifier.weight(1f))
+                // 红心：喜欢/取消喜欢当前播放的歌
+                IconButton(onClick = onToggleLike) {
+                    Icon(
+                        imageVector = if (liked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                        contentDescription = if (liked) "取消喜欢" else "喜欢",
+                        tint = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 // 歌词 / 封面切换
                 IconButton(onClick = { showLyrics = !showLyrics }) {
                     Text(

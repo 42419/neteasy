@@ -29,9 +29,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,11 +43,14 @@ import androidx.compose.ui.unit.dp
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yunov.neteasy.data.LikeRepository
 import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.model.Song
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.toPlayerSong
+import top.yunov.neteasy.ui.components.SongActionSheet
 import top.yunov.neteasy.ui.theme.ButtonShape
 
 /**
@@ -69,10 +74,18 @@ import top.yunov.neteasy.ui.theme.ButtonShape
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun DailyRecommendScreen(repository: NcmRepository, player: PlayerController, onBack: () -> Unit) {
+fun DailyRecommendScreen(
+    repository: NcmRepository,
+    player: PlayerController,
+    likeRepository: LikeRepository,
+    onBack: () -> Unit
+) {
     var songs by remember { mutableStateOf<List<Song>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    var actionSheetSong by remember { mutableStateOf<Song?>(null) }
+    val likedIds by likeRepository.likedIds.collectAsState()
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         try {
@@ -188,11 +201,26 @@ fun DailyRecommendScreen(repository: NcmRepository, player: PlayerController, on
                                 onClick = {
                                     player.playQueue(songs.map { it.toPlayerSong() }, index)
                                 },
+                                onLongClick = { actionSheetSong = song },
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 3.dp)
                             )
                         }
                     }
             }
         }
+    }
+
+    val sheetSong = actionSheetSong
+    if (sheetSong != null) {
+        SongActionSheet(
+            songName = sheetSong.name,
+            songArtists = sheetSong.artists.joinToString(" / "),
+            songPicUrl = sheetSong.picUrl,
+            liked = sheetSong.id in likedIds,
+            onToggleLike = {
+                scope.launch { likeRepository.toggle(sheetSong.id) }
+            },
+            onDismiss = { actionSheetSong = null }
+        )
     }
 }

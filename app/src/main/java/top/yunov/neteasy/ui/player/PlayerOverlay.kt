@@ -37,6 +37,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.launch
 import top.met6.amll.AppleMusicLyricPlayerStyle
+import top.yunov.neteasy.data.LikeRepository
 import top.yunov.neteasy.data.LyricFont
 import top.yunov.neteasy.data.SettingsStore
 import top.yunov.neteasy.data.filteredForDisplay
@@ -76,6 +77,7 @@ private enum class SheetTarget { COLLAPSED, EXPANDED }
 @Composable
 fun PlayerAwareContent(
     player: PlayerController,
+    likeRepository: LikeRepository,
     modifier: Modifier = Modifier,
     /**
      * 悬浮卡片额外再往上抬多少：给「卡片下面还有别的东西」的场景用（比如 MainActivity
@@ -89,6 +91,7 @@ fun PlayerAwareContent(
     val context = LocalContext.current
     val settings = remember { SettingsStore(context) }
     val playerState by player.state.collectAsState()
+    val likedIds by likeRepository.likedIds.collectAsState()
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
 
@@ -318,6 +321,10 @@ fun PlayerAwareContent(
                     },
                     onCycleRepeat = { player.cycleRepeatMode() },
                     onCollapse = { collapseSheet() },
+                    liked = playerState.song?.let { it.id in likedIds } ?: false,
+                    onToggleLike = {
+                        playerState.song?.let { song -> scope.launch { likeRepository.toggle(song.id) } }
+                    },
                     lyricStyle = lyricStyle,
                     lyricLines = filteredLyricLines,
                     lyricOffsetMs = lyricOffsetMs.toLong(),

@@ -18,10 +18,11 @@ class DailyRecommendActivity : ComponentActivity() {
         val app = application as NeteasyApp
         setContent {
             NeteasyThemedScreen {
-                PlayerAwareContent(player = app.playerController) {
+                PlayerAwareContent(player = app.playerController, likeRepository = app.likeRepository) {
                     DailyRecommendScreen(
                         repository = app.repository,
                         player = app.playerController,
+                        likeRepository = app.likeRepository,
                         onBack = { finish() }
                     )
                 }

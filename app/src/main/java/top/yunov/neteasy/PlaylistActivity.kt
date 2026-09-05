@@ -20,12 +20,13 @@ class PlaylistActivity : ComponentActivity() {
         val playlistId = intent.getLongExtra(EXTRA_PLAYLIST_ID, -1L)
         setContent {
             NeteasyThemedScreen {
-                PlayerAwareContent(player = app.playerController) {
+                PlayerAwareContent(player = app.playerController, likeRepository = app.likeRepository) {
                     if (playlistId != -1L) {
                         PlaylistScreen(
                             playlistId = playlistId,
                             repository = app.repository,
                             player = app.playerController,
+                            likeRepository = app.likeRepository,
                             onBack = { finish() }
                         )
                     }

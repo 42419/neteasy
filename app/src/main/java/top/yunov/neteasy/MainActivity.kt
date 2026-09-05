@@ -160,6 +160,7 @@ private fun NcmApp(settings: SettingsStore) {
     val repository = app.repository
     val cookieStore = app.apiClient.cookieStore
     val player = app.playerController
+    val likeRepository = app.likeRepository
 
     var screen by remember { mutableStateOf(Screen.HOME) }
     var profileRefreshKey by remember { mutableIntStateOf(0) }
@@ -192,6 +193,7 @@ private fun NcmApp(settings: SettingsStore) {
     // 导致切不了 Tab（这块被反馈过一次，之前漏了导航栏本身也要占的这段高度）。
     PlayerAwareContent(
         player = player,
+        likeRepository = likeRepository,
         modifier = Modifier.fillMaxSize(),
         minibarBottomPadding = 80.dp
     ) {
@@ -221,6 +223,7 @@ private fun NcmApp(settings: SettingsStore) {
                         repository = repository,
                         cookieStore = cookieStore,
                         refreshKey = profileRefreshKey,
+                        likeRepository = likeRepository,
                         onLoginClick = { loginLauncher.launch(Intent(context, LoginActivity::class.java)) },
                         onOpenSettings = { context.startActivity(Intent(context, SettingsActivity::class.java)) },
                         onOpenPlaylist = { id ->

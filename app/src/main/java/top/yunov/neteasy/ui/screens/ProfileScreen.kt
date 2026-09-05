@@ -47,6 +47,7 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.CookieStore
+import top.yunov.neteasy.data.LikeRepository
 import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.model.Playlist
 import top.yunov.neteasy.data.model.thumbnail
@@ -62,6 +63,7 @@ fun ProfileScreen(
     repository: NcmRepository,
     cookieStore: CookieStore,
     refreshKey: Int = 0,
+    likeRepository: LikeRepository,
     onLoginClick: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenPlaylist: (Long) -> Unit,
@@ -80,6 +82,9 @@ fun ProfileScreen(
     // 外部登录成功 refreshKey 变化 或 本页登出 logoutRefreshKey 变化 都重新加载
     LaunchedEffect(refreshKey, logoutRefreshKey) {
         checking = true
+        // 登录态变化时红心列表也要跟着重新拉（登出要清空，登录要拉自己的），
+        // 独立触发不阻塞下面这堆 profile 信息的加载
+        likeRepository.refresh()
         val info =
             withContext(Dispatchers.IO) {
                 if (cookieStore.hasLogin()) repository.loginStatus() else null

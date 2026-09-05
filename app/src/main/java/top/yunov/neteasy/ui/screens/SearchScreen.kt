@@ -1,8 +1,10 @@
 package top.yunov.neteasy.ui.screens
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -44,6 +46,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,12 +69,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yunov.neteasy.data.LikeRepository
 import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.SearchHistoryStore
 import top.yunov.neteasy.data.model.Song
 import top.yunov.neteasy.data.model.thumbnail
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.toPlayerSong
+import top.yunov.neteasy.ui.components.SongActionSheet
 import top.yunov.neteasy.ui.theme.ButtonShape
 import top.yunov.neteasy.ui.theme.ExpressiveMotion
 
@@ -84,9 +89,17 @@ import top.yunov.neteasy.ui.theme.ExpressiveMotion
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalLayoutApi::class)
 @Composable
-fun SearchScreen(repository: NcmRepository, player: PlayerController, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun SearchScreen(
+    repository: NcmRepository,
+    player: PlayerController,
+    likeRepository: LikeRepository,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
     val historyStore = remember { SearchHistoryStore(context) }
+    var actionSheetSong by remember { mutableStateOf<Song?>(null) }
+    val likedIds by likeRepository.likedIds.collectAsState()
 
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<Song>>(emptyList()) }
@@ -219,7 +232,8 @@ fun SearchScreen(repository: NcmRepository, player: PlayerController, onBack: ()
                                     song = song,
                                     onClick = {
                                         player.playQueue(results.map { it.toPlayerSong() }, index)
-                                    }
+                                    },
+                                    onLongClick = { actionSheetSong = song }
                                 )
                             }
                         }
@@ -295,6 +309,20 @@ fun SearchScreen(repository: NcmRepository, player: PlayerController, onBack: ()
             }
         }
     }
+
+    val sheetSong = actionSheetSong
+    if (sheetSong != null) {
+        SongActionSheet(
+            songName = sheetSong.name,
+            songArtists = sheetSong.artists.joinToString(" / "),
+            songPicUrl = sheetSong.picUrl,
+            liked = sheetSong.id in likedIds,
+            onToggleLike = {
+                scope.launch { likeRepository.toggle(sheetSong.id) }
+            },
+            onDismiss = { actionSheetSong = null }
+        )
+    }
 }
 
 /** 热搜 / 历史区：小标题（带可选的清空按钮）+ 词条 FlowRow */
@@ -335,8 +363,9 @@ private fun KeywordFlow(keywords: List<String>, onPick: (String) -> Unit) {
  * 歌曲列表行（搜索 / 歌单详情共用）：Expressive 圆角容器 + 圆形播放图标。
  * 按下时弹性缩小（spring）。
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun SongRow(song: Song, onClick: () -> Unit) {
+fun SongRow(song: Song, onClick: () -> Unit, onLongClick: () -> Unit = {}) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -354,7 +383,12 @@ fun SongRow(song: Song, onClick: () -> Unit) {
                 scaleY = scale
             }.clip(MaterialTheme.shapes.medium)
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .combinedClickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

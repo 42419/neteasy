@@ -1,8 +1,9 @@
 package top.yunov.neteasy.ui.screens
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -44,6 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,12 +66,14 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yunov.neteasy.data.LikeRepository
 import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.model.Playlist
 import top.yunov.neteasy.data.model.Song
 import top.yunov.neteasy.data.model.thumbnail
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.toPlayerSong
+import top.yunov.neteasy.ui.components.SongActionSheet
 import top.yunov.neteasy.ui.components.formatTime
 import top.yunov.neteasy.ui.theme.ButtonShape
 import top.yunov.neteasy.ui.theme.ExpressiveMotion
@@ -96,15 +100,24 @@ import top.yunov.neteasy.ui.theme.extractCoverSeedColor
  * - 没有缓存（第一次打开这个歌单）：正常显示加载动画，等首次网络请求。
  * - 下拉刷新：无视缓存强制重新拉取，参照系统惯例的下拉手势。
  */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun PlaylistScreen(playlistId: Long, repository: NcmRepository, player: PlayerController, onBack: () -> Unit) {
+fun PlaylistScreen(
+    playlistId: Long,
+    repository: NcmRepository,
+    player: PlayerController,
+    likeRepository: LikeRepository,
+    onBack: () -> Unit
+) {
     var detail by remember { mutableStateOf<Playlist?>(null) }
     var songs by remember { mutableStateOf<List<Song>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var refreshing by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var headerColor by remember { mutableStateOf<Color?>(null) }
+    // 长按弹出的操作面板当前对应哪首歌，null 表示没打开
+    var actionSheetSong by remember { mutableStateOf<Song?>(null) }
+    val likedIds by likeRepository.likedIds.collectAsState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -217,6 +230,7 @@ fun PlaylistScreen(playlistId: Long, repository: NcmRepository, player: PlayerCo
                                 onClick = {
                                     player.playQueue(songs.map { it.toPlayerSong() }, index)
                                 },
+                                onLongClick = { actionSheetSong = song },
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 3.dp)
                             )
                         }
@@ -224,6 +238,20 @@ fun PlaylistScreen(playlistId: Long, repository: NcmRepository, player: PlayerCo
                 }
             }
         }
+    }
+
+    val sheetSong = actionSheetSong
+    if (sheetSong != null) {
+        SongActionSheet(
+            songName = sheetSong.name,
+            songArtists = sheetSong.artists.joinToString(" / "),
+            songPicUrl = sheetSong.picUrl,
+            liked = sheetSong.id in likedIds,
+            onToggleLike = {
+                scope.launch { likeRepository.toggle(sheetSong.id) }
+            },
+            onDismiss = { actionSheetSong = null }
+        )
     }
 }
 
@@ -397,7 +425,14 @@ private fun TagChip(text: String) {
  * 标成 internal 而不是 private，因为要跨文件（同包）用。
  */
 @Composable
-internal fun IndexedSongRow(index: Int, song: Song, onClick: () -> Unit, modifier: Modifier = Modifier) {
+@OptIn(ExperimentalFoundationApi::class)
+internal fun IndexedSongRow(
+    index: Int,
+    song: Song,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -414,7 +449,12 @@ internal fun IndexedSongRow(index: Int, song: Song, onClick: () -> Unit, modifie
                 scaleY = scale
             }.clip(MaterialTheme.shapes.medium)
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .combinedClickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
