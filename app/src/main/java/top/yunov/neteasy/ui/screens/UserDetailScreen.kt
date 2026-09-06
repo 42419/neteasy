@@ -20,7 +20,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.GraphicEq
@@ -28,7 +27,6 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Stars
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
@@ -53,6 +51,7 @@ import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.model.UserDetail
 import top.yunov.neteasy.data.model.thumbnail
+import top.yunov.neteasy.ui.components.TactileBackButton
 
 /**
  * 用户详情页（从「我的」页点头像/个人信息进入）：
@@ -91,9 +90,7 @@ fun UserDetailScreen(repository: NcmRepository, uid: Long, onBack: () -> Unit) {
         ) {
             // 顶部返回栏（标题与其他二级页面统一：粗体大字）
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                FilledTonalIconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                }
+                TactileBackButton(onClick = onBack)
                 Spacer(modifier = Modifier.width(12.dp))
                 Text("个人信息", style = MaterialTheme.typography.headlineLarge)
             }

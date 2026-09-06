@@ -29,7 +29,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.PlayArrow
@@ -37,7 +36,6 @@ import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -74,6 +72,7 @@ import top.yunov.neteasy.data.model.thumbnail
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.toPlayerSong
 import top.yunov.neteasy.ui.components.SongActionSheet
+import top.yunov.neteasy.ui.components.TactileBackButton
 import top.yunov.neteasy.ui.components.formatTime
 import top.yunov.neteasy.ui.theme.ButtonShape
 import top.yunov.neteasy.ui.theme.ExpressiveMotion
@@ -182,9 +181,7 @@ fun PlaylistScreen(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("加载失败：$error")
-                        FilledTonalIconButton(onClick = onBack, modifier = Modifier.padding(top = 12.dp)) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                        }
+                        TactileBackButton(onClick = onBack, modifier = Modifier.padding(top = 12.dp))
                     }
                 }
             else -> {
@@ -284,9 +281,7 @@ private fun PlaylistHeader(pl: Playlist, headerColor: Color?, onBack: () -> Unit
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            FilledTonalIconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-            }
+            TactileBackButton(onClick = onBack)
             Row(modifier = Modifier.padding(top = 12.dp)) {
                 AsyncImage(
                     model = pl.coverUrl.thumbnail(360),

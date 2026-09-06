@@ -21,7 +21,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Download
@@ -32,7 +31,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -63,6 +61,7 @@ import top.yunov.neteasy.data.UpdateUiState
 import top.yunov.neteasy.ui.components.DarkMode
 import top.yunov.neteasy.ui.components.Palette
 import top.yunov.neteasy.ui.components.Storage
+import top.yunov.neteasy.ui.components.TactileBackButton
 
 /**
  * 设置页（MD3 Expressive）：按功能分了三类，不再是七八张卡片平铺一遍：
@@ -123,10 +122,8 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 官方 FilledTonalIconButton：自带容器 + Expressive spring 动效
-                FilledTonalIconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                }
+                // 按压回弹 + 高光反馈，比默认水波纹更有质感
+                TactileBackButton(onClick = onBack)
                 Spacer(modifier = Modifier.width(12.dp))
                 Text("设置", style = MaterialTheme.typography.headlineLarge)
             }

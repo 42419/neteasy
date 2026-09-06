@@ -17,11 +17,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
@@ -44,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.NcmRepository
+import top.yunov.neteasy.ui.components.TactileBackButton
 import top.yunov.neteasy.ui.theme.ButtonShape
 
 /** 登录页二维码来源：base64 data url 由后端 /login/qr/create?qrimg=true 生成 */
@@ -130,10 +129,8 @@ fun LoginScreen(repository: NcmRepository, onBack: () -> Unit, onLoggedIn: () ->
                     .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 官方 FilledTonalIconButton：自带容器 + Expressive spring 动效
-                FilledTonalIconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                }
+                // 按压回弹 + 高光反馈，比默认水波纹更有质感
+                TactileBackButton(onClick = onBack)
                 Text(
                     "扫码登录",
                     // 与其他二级页面（设置/存储/搜索）标题统一：粗体大字（headlineLarge）

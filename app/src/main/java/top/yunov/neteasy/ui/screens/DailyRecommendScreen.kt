@@ -17,12 +17,10 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -51,6 +49,7 @@ import top.yunov.neteasy.data.model.Song
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.toPlayerSong
 import top.yunov.neteasy.ui.components.SongActionSheet
+import top.yunov.neteasy.ui.components.TactileBackButton
 import top.yunov.neteasy.ui.theme.ButtonShape
 
 /**
@@ -119,9 +118,7 @@ fun DailyRecommendScreen(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("加载失败：$error")
-                            FilledTonalIconButton(onClick = onBack, modifier = Modifier.padding(top = 12.dp)) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                            }
+                            TactileBackButton(onClick = onBack, modifier = Modifier.padding(top = 12.dp))
                         }
                     }
                 songs.isEmpty() ->
@@ -131,9 +128,7 @@ fun DailyRecommendScreen(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("暂无推荐，登录后查看", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            FilledTonalIconButton(onClick = onBack, modifier = Modifier.padding(top = 12.dp)) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                            }
+                            TactileBackButton(onClick = onBack, modifier = Modifier.padding(top = 12.dp))
                         }
                     }
                 else ->
@@ -163,9 +158,7 @@ fun DailyRecommendScreen(
                                     .windowInsetsPadding(WindowInsets.statusBars)
                                     .padding(horizontal = 20.dp, vertical = 16.dp)
                             ) {
-                                FilledTonalIconButton(onClick = onBack) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                                }
+                                TactileBackButton(onClick = onBack)
                                 Text(
                                     LocalDate.now().format(DateTimeFormatter.ofPattern("dd / MM")),
                                     style = MaterialTheme.typography.displaySmall,

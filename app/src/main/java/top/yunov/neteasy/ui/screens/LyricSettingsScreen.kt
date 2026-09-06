@@ -17,10 +17,8 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -40,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import top.yunov.neteasy.data.LyricFont
 import top.yunov.neteasy.data.LyricSpringPreset
+import top.yunov.neteasy.ui.components.TactileBackButton
 
 /**
  * 歌词渲染细节设置页：从「设置」进入的独立页面。
@@ -97,9 +96,7 @@ fun LyricSettingsScreen(
                 .padding(20.dp)
         ) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                FilledTonalIconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                }
+                TactileBackButton(onClick = onBack)
                 Spacer(modifier = Modifier.width(12.dp))
                 Text("歌词", style = MaterialTheme.typography.headlineLarge)
             }
