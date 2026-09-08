@@ -1,7 +1,9 @@
 package top.yunov.neteasy
 
+import android.app.Activity
 import android.app.Application
 import android.content.Intent
+import android.os.Bundle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -13,6 +15,7 @@ import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.SettingsStore
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.ui.theme.CoverThemeController
+import top.yunov.neteasy.util.RefreshRate
 
 /**
  * 应用入口：冷启动时拉起 Node 后端前台服务。
@@ -48,5 +51,20 @@ class NeteasyApp : Application() {
         super.onCreate()
         // minSdk 29，startForegroundService 恒可用，不用再判断 Build.VERSION
         startForegroundService(Intent(this, NodeService::class.java))
+
+        // 高刷新率：所有 Activity（含独立 Activity）创建时统一向系统申请
+        // 当前分辨率下的最高显示模式，避免系统省电策略把滚动/动画降回 60Hz
+        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
+                RefreshRate.applyHighest(activity)
+            }
+
+            override fun onActivityStarted(activity: Activity) {}
+            override fun onActivityResumed(activity: Activity) {}
+            override fun onActivityPaused(activity: Activity) {}
+            override fun onActivityStopped(activity: Activity) {}
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+            override fun onActivityDestroyed(activity: Activity) {}
+        })
     }
 }
