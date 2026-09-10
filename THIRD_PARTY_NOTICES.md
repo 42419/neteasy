@@ -1,13 +1,27 @@
 # 第三方代码引用说明
 
-本项目部分 UI 交互效果的实现参考/改编自以下开源项目，按其许可证要求在此注明。
+本项目部分 UI 交互效果的实现引用/参考自以下开源项目，按其许可证要求在此注明。
+
+## Kyant0/AndroidLiquidGlass
+
+- 项目地址：https://github.com/Kyant0/AndroidLiquidGlass
+- 许可证：Apache License 2.0
+- 引用方式：Maven 依赖 `io.github.kyant0:backdrop`（见 `app/build.gradle.kts`）
+- 引用位置：`app/src/main/java/top/yunov/neteasy/ui/components/GlassBackBar.kt`
+- 说明：`GlassTopBackBar` 里顶部渐进模糊条带用的 `drawPlainBackdrop` + `runtimeShaderEffect`
+  这套 API 就是这个库提供的，本项目没有修改其实现，只是按官方
+  Progressive blur 教程（https://kyant.gitbook.io/backdrop/tutorials/progressive-blur）
+  的写法调用。
 
 ## Nevodev/Cresto
 
 - 项目地址：https://github.com/Nevodev/Cresto
 - 许可证：Apache License 2.0
-- 引用位置：`app/src/main/java/top/yunov/neteasy/ui/components/TactileBackButton.kt`
-- 说明：按压反馈的弹簧参数、`TransformOrigin`、`drawBehind` 叠加顺序等具体机制，
-  改编自该项目 `glasense-ui` 模块 `Button.kt` 中的 `ButtonPressEffect.Scale`
-  实现，并按本项目图标按钮的场景做了简化（去掉了原版按钮组件的 role/disabled
-  等通用按钮语义，只保留返回按钮需要的按压反馈本身）。
+- 引用位置：`app/src/main/java/top/yunov/neteasy/ui/components/GlassBackBar.kt`
+- 说明：`GlassTopBackBar` 里返回按钮固定悬浮定位（Box + align(TopStart)，滚动内容的兄弟节点
+  而非父子）、`rememberPageBackdrop` 的 3 倍大背景色矩形预填充、渐进模糊条带的滚动门控淡入
+  （`isScrolledPast`）这几处具体做法，参考自该项目 `feature/settings/AboutScreen.kt` 和
+  `ui/components/glasense/GlasenseDynamicSmallTitle.kt`，按本项目场景做了改写（比如把
+  `LazyListState` 版本的滚动门控换成了普通 `ScrollState` 也能用的版本），不是逐行照搬。
+  按压回弹缩放（1→1.2倍）+ 高光叠加这套动效参数最早也是照这个项目 `glasense-ui` 模块
+  `Button.kt` 里的 `ButtonPressEffect.Scale` 抄的。

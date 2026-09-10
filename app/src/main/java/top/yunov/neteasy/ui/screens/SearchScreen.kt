@@ -76,7 +76,8 @@ import top.yunov.neteasy.data.model.thumbnail
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.toPlayerSong
 import top.yunov.neteasy.ui.components.SongActionSheet
-import top.yunov.neteasy.ui.components.TactileBackButton
+import top.yunov.neteasy.ui.components.GlassTopBackBar
+import top.yunov.neteasy.ui.components.rememberPageBackdrop
 import top.yunov.neteasy.ui.theme.ButtonShape
 import top.yunov.neteasy.ui.theme.ExpressiveMotion
 
@@ -160,7 +161,13 @@ fun SearchScreen(
             }
     }
 
+    // 三种不同内容态（结果/热搜历史/建议词）各自用独立的 LazyColumn，没有单一的可滚动容器，
+    // 跟返回按钮悬浮效果依赖的"内容滚过按钮下面"这个前提对不上，所以这里不接渐进模糊
+    // （scrolledPast 恒为 false，处理方式同 LoginScreen），只统一按钮的固定定位 + 按压效果。
+    val backdrop = rememberPageBackdrop()
+
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier =
             Modifier
@@ -168,14 +175,13 @@ fun SearchScreen(
                 .windowInsetsPadding(WindowInsets.systemBars)
                 .padding(horizontal = 16.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp, bottom = 14.dp)) {
-                TactileBackButton(onClick = onBack, filled = false)
-                Text(
-                    text = "搜索",
-                    style = MaterialTheme.typography.headlineLarge,
-                    modifier = Modifier.padding(start = 4.dp)
-                )
-            }
+            // 给顶部固定的返回按钮留出空间
+            Spacer(modifier = Modifier.height(80.dp))
+            Text(
+                text = "搜索",
+                style = MaterialTheme.typography.headlineLarge,
+                modifier = Modifier.padding(start = 4.dp, bottom = 14.dp)
+            )
             OutlinedTextField(
                 value = query,
                 onValueChange = { onQueryChange(it) },
@@ -305,6 +311,8 @@ fun SearchScreen(
                     }
                 }
             }
+        }
+        GlassTopBackBar(backdrop = backdrop, scrolledPast = false, onBack = onBack)
         }
     }
 

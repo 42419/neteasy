@@ -6,7 +6,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,10 +38,12 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.kyant.backdrop.backdrops.layerBackdrop
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.NcmRepository
-import top.yunov.neteasy.ui.components.TactileBackButton
+import top.yunov.neteasy.ui.components.GlassTopBackBar
+import top.yunov.neteasy.ui.components.rememberPageBackdrop
 import top.yunov.neteasy.ui.theme.ButtonShape
 
 /** 登录页二维码来源：base64 data url 由后端 /login/qr/create?qrimg=true 生成 */
@@ -113,31 +114,29 @@ fun LoginScreen(repository: NcmRepository, onBack: () -> Unit, onLoggedIn: () ->
         }
     }
 
+    // 这个页面内容不滚动（就一屏二维码），没有可滚动状态，渐进模糊条带永远不会淡入
+    // （scrolledPast 恒为 false）；backdrop 留着只是为了跟其他二级页统一用同一个
+    // GlassTopBackBar，返回按钮本身固定定位 + 按压效果这块的一致性更重要。
+    val backdrop = rememberPageBackdrop()
+
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier =
             Modifier
                 .fillMaxSize()
+                .layerBackdrop(backdrop)
                 // 全屏覆盖层，Scaffold 的 insets 罩不到这里，自己处理状态栏/手势导航栏
                 .windowInsetsPadding(WindowInsets.systemBars)
         ) {
-            // 顶部返回栏
-            Row(
-                modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // 按压回弹 + 高光反馈，比默认水波纹更有质感
-                TactileBackButton(onClick = onBack)
-                Text(
-                    "扫码登录",
-                    // 与其他二级页面（设置/存储/搜索）标题统一：粗体大字（headlineLarge）
-                    style = MaterialTheme.typography.headlineLarge,
-                    modifier = Modifier.padding(start = 12.dp)
-                )
-            }
+            // 给顶部固定的返回按钮留出空间
+            Spacer(modifier = Modifier.height(80.dp))
+            Text(
+                "扫码登录",
+                // 与其他二级页面（设置/存储/搜索）标题统一：粗体大字（headlineLarge）
+                style = MaterialTheme.typography.headlineLarge,
+                modifier = Modifier.padding(start = 20.dp)
+            )
 
             Column(
                 modifier =
@@ -202,6 +201,8 @@ fun LoginScreen(repository: NcmRepository, onBack: () -> Unit, onLoggedIn: () ->
                     textAlign = TextAlign.Center
                 )
             }
+        }
+        GlassTopBackBar(backdrop = backdrop, scrolledPast = false, onBack = onBack)
         }
     }
 }

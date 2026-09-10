@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -50,18 +51,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.kyant.backdrop.backdrops.layerBackdrop
 import top.yunov.neteasy.data.AudioQuality
 import top.yunov.neteasy.data.CacheExpiryDays
 import top.yunov.neteasy.data.CacheSizeLimit
 import top.yunov.neteasy.data.ThemeMode
 import top.yunov.neteasy.data.UpdateUiState
 import top.yunov.neteasy.ui.components.DarkMode
+import top.yunov.neteasy.ui.components.GlassTopBackBar
 import top.yunov.neteasy.ui.components.Palette
 import top.yunov.neteasy.ui.components.Storage
-import top.yunov.neteasy.ui.components.TactileBackButton
+import top.yunov.neteasy.ui.components.isScrolledPast
+import top.yunov.neteasy.ui.components.rememberPageBackdrop
 
 /**
  * 设置页（MD3 Expressive）：按功能分了三类，不再是七八张卡片平铺一遍：
@@ -106,29 +111,29 @@ fun SettingsScreen(
     var cacheSizeDialog by remember { mutableStateOf(false) }
     var cacheExpiryDialog by remember { mutableStateOf(false) }
 
-    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            modifier =
-            Modifier
-                .fillMaxSize()
-                // insets 挪到 verticalScroll 后面：放前面会把系统栏高度从可滚动视口本身抠掉，
-                // 页面内容永远滚不到状态栏/手势导航栏底下，整页看着像上下各被裁掉一条边
-                .verticalScroll(rememberScrollState())
-                .windowInsetsPadding(WindowInsets.systemBars)
-                .padding(20.dp)
-        ) {
-            // 顶部返回栏
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // 按压回弹 + 高光反馈，比默认水波纹更有质感
-                TactileBackButton(onClick = onBack)
-                Spacer(modifier = Modifier.width(12.dp))
-                Text("设置", style = MaterialTheme.typography.headlineLarge)
-            }
+    val statusBarHeight = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
+    val scrollState = rememberScrollState()
+    val backdrop = rememberPageBackdrop()
+    val scrolledPast by scrollState.isScrolledPast(statusBarHeight + 24.dp)
 
-            Spacer(modifier = Modifier.height(24.dp))
+    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier =
+                Modifier
+                    .fillMaxSize()
+                    .layerBackdrop(backdrop)
+                    // insets 挪到 verticalScroll 后面：放前面会把系统栏高度从可滚动视口本身抠掉，
+                    // 页面内容永远滚不到状态栏/手势导航栏底下，整页看着像上下各被裁掉一条边
+                    .verticalScroll(scrollState)
+                    .windowInsetsPadding(WindowInsets.systemBars)
+                    .padding(20.dp)
+            ) {
+                // 给顶部固定的返回按钮留出空间，标题本身还是跟内容一起滚动
+                Spacer(modifier = Modifier.height(80.dp))
+                Text("设置", style = MaterialTheme.typography.headlineLarge)
+
+                Spacer(modifier = Modifier.height(24.dp))
 
             // ---- 外观：深色模式 / 动态取色 / 封面取色 ----
             SettingsCategory(title = "外观") {
@@ -286,6 +291,10 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
+
+        // 返回按钮固定左上角 + 顶部渐进模糊，抽成了 GlassTopBackBar 复用给所有二级页
+        GlassTopBackBar(backdrop = backdrop, scrolledPast = scrolledPast, onBack = onBack)
         }
     }
 

@@ -4,10 +4,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.ContainedLoadingIndicator
@@ -25,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -38,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.kyant.backdrop.backdrops.layerBackdrop
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Dispatchers
@@ -49,7 +54,9 @@ import top.yunov.neteasy.data.model.Song
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.toPlayerSong
 import top.yunov.neteasy.ui.components.SongActionSheet
-import top.yunov.neteasy.ui.components.TactileBackButton
+import top.yunov.neteasy.ui.components.GlassTopBackBar
+import top.yunov.neteasy.ui.components.isScrolledPast
+import top.yunov.neteasy.ui.components.rememberPageBackdrop
 import top.yunov.neteasy.ui.theme.ButtonShape
 
 /**
@@ -99,11 +106,17 @@ fun DailyRecommendScreen(
         loading = false
     }
 
+    val backdrop = rememberPageBackdrop()
+    val lazyListState = rememberLazyListState()
+    val statusBarHeight = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
+    val scrolledPast by lazyListState.isScrolledPast(statusBarHeight + 24.dp)
+
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
             when {
                 // loading/error/暂无推荐这三个状态没有渐变头图可用，各自的 Box 自己吃 systemBars，
-                // error/empty 里另外塞一个返回按钮（不然用户会卡在这个状态出不去）
+                // error/empty 里另外塞一个简单的文字返回按钮（不然用户会卡在这个状态出不去）——
+                // 这两个是居中的小提示页，不需要跟主内容一样的悬浮玻璃返回按钮那一套
                 loading ->
                     Box(
                         modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars),
@@ -118,7 +131,9 @@ fun DailyRecommendScreen(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("加载失败：$error")
-                            TactileBackButton(onClick = onBack, modifier = Modifier.padding(top = 12.dp))
+                            TextButton(onClick = onBack, modifier = Modifier.padding(top = 12.dp)) {
+                                Text("返回")
+                            }
                         }
                     }
                 songs.isEmpty() ->
@@ -128,12 +143,16 @@ fun DailyRecommendScreen(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("暂无推荐，登录后查看", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            TactileBackButton(onClick = onBack, modifier = Modifier.padding(top = 12.dp))
+                            TextButton(onClick = onBack, modifier = Modifier.padding(top = 12.dp)) {
+                                Text("返回")
+                            }
                         }
                     }
                 else ->
+                    Box(modifier = Modifier.fillMaxSize()) {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
+                        state = lazyListState,
+                        modifier = Modifier.fillMaxSize().layerBackdrop(backdrop),
                         // 底部同时吃手势导航栏实际高度 + 96dp 悬浮 Minibar 净空，最后几首歌能滚动到
                         // 系统导航栏下面，而不是被一块固定 inset 拦住（同歌单详情页的改法）
                         contentPadding =
@@ -142,10 +161,9 @@ fun DailyRecommendScreen(
                         )
                     ) {
                         item {
-                            // 返回按钮之前是 LazyColumn 外面单独一条固定栏，跟这张渐变头图卡片是两块
-                            // 东西——渐变怎么改都贴不到屏幕最顶，因为它上面永远压着那条固定栏。改成
-                            // 跟歌单详情页一样，把返回按钮塞进渐变 Column 内部，渐变 Box 本身不吃
-                            // 顶部 inset（一路铺到状态栏底下），只有里面的返回按钮单独吃 statusBars
+                            // 返回按钮挪到悬浮的 GlassTopBackBar 里去了，不再嵌在这张渐变卡片内部，
+                            // 所以渐变 Column 不用再单独吃 statusBars，从原来的位置往下留个 76dp
+                            // 的间距给悬浮按钮腾地方就行
                             Column(
                                 modifier =
                                 Modifier
@@ -155,10 +173,9 @@ fun DailyRecommendScreen(
                                             listOf(Color(0xFFFFB74D).copy(alpha = 0.5f), MaterialTheme.colorScheme.background)
                                         )
                                     )
-                                    .windowInsetsPadding(WindowInsets.statusBars)
                                     .padding(horizontal = 20.dp, vertical = 16.dp)
                             ) {
-                                TactileBackButton(onClick = onBack)
+                                Spacer(modifier = Modifier.height(80.dp))
                                 Text(
                                     LocalDate.now().format(DateTimeFormatter.ofPattern("dd / MM")),
                                     style = MaterialTheme.typography.displaySmall,
@@ -198,6 +215,8 @@ fun DailyRecommendScreen(
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 3.dp)
                             )
                         }
+                    }
+                    GlassTopBackBar(backdrop = backdrop, scrolledPast = scrolledPast, onBack = onBack)
                     }
             }
         }

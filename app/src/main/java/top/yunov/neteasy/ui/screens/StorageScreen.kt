@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,12 +25,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import top.yunov.neteasy.ui.components.TactileBackButton
+import com.kyant.backdrop.backdrops.layerBackdrop
+import top.yunov.neteasy.ui.components.GlassTopBackBar
+import top.yunov.neteasy.ui.components.isScrolledPast
+import top.yunov.neteasy.ui.components.rememberPageBackdrop
 
 /**
  * 存储空间页：参考网易云音乐官方「存储空间」页的版式（大数字 + 占用条 + 分项卡片），
@@ -53,24 +58,29 @@ fun StorageScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val statusBarHeight = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
+    val scrollState = rememberScrollState()
+    val backdrop = rememberPageBackdrop()
+    val scrolledPast by scrollState.isScrolledPast(statusBarHeight + 24.dp)
+
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier =
             Modifier
                 .fillMaxSize()
+                .layerBackdrop(backdrop)
                 // windowInsetsPadding 放在 verticalScroll 前面会把系统栏的高度从可滚动视口本身
                 // 里抠掉——内容永远滚不到状态栏/手势导航栏底下。挪到 verticalScroll 后面，insets
                 // 变成可滚动内容的一部分（效果上等同于 LazyColumn 的 contentPadding），
                 // 页面能在这两条系统栏底下正常滚动
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .windowInsetsPadding(WindowInsets.systemBars)
                 .padding(20.dp)
         ) {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                TactileBackButton(onClick = onBack)
-                Spacer(modifier = Modifier.width(12.dp))
-                Text("存储空间", style = MaterialTheme.typography.headlineLarge)
-            }
+            // 给顶部固定的返回按钮留出空间，标题本身还是跟内容一起滚动
+            Spacer(modifier = Modifier.height(80.dp))
+            Text("存储空间", style = MaterialTheme.typography.headlineLarge)
 
             Spacer(modifier = Modifier.height(28.dp))
 
@@ -181,6 +191,8 @@ fun StorageScreen(
                 buttonEnabled = false,
                 onClick = {}
             )
+        }
+        GlassTopBackBar(backdrop = backdrop, scrolledPast = scrolledPast, onBack = onBack)
         }
     }
 }

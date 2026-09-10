@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -46,12 +47,15 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.kyant.backdrop.backdrops.layerBackdrop
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.model.UserDetail
 import top.yunov.neteasy.data.model.thumbnail
-import top.yunov.neteasy.ui.components.TactileBackButton
+import top.yunov.neteasy.ui.components.GlassTopBackBar
+import top.yunov.neteasy.ui.components.isScrolledPast
+import top.yunov.neteasy.ui.components.rememberPageBackdrop
 
 /**
  * 用户详情页（从「我的」页点头像/个人信息进入）：
@@ -77,23 +81,27 @@ fun UserDetailScreen(repository: NcmRepository, uid: Long, onBack: () -> Unit) {
         }
     }
 
+    val statusBarHeight = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
+    val scrollState = rememberScrollState()
+    val backdrop = rememberPageBackdrop()
+    val scrolledPast by scrollState.isScrolledPast(statusBarHeight + 24.dp)
+
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier =
             Modifier
                 .fillMaxSize()
+                .layerBackdrop(backdrop)
                 // 见 StorageScreen 同样的改法：insets 挪到 verticalScroll 后面，让它变成可滚动
                 // 内容的一部分，而不是永久占掉可滚动视口的高度
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .windowInsetsPadding(WindowInsets.systemBars)
                 .padding(20.dp)
         ) {
-            // 顶部返回栏（标题与其他二级页面统一：粗体大字）
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                TactileBackButton(onClick = onBack)
-                Spacer(modifier = Modifier.width(12.dp))
-                Text("个人信息", style = MaterialTheme.typography.headlineLarge)
-            }
+            // 给顶部固定的返回按钮留出空间，标题本身还是跟内容一起滚动
+            Spacer(modifier = Modifier.height(80.dp))
+            Text("个人信息", style = MaterialTheme.typography.headlineLarge)
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -108,6 +116,8 @@ fun UserDetailScreen(repository: NcmRepository, uid: Long, onBack: () -> Unit) {
                     }
                 detail != null -> UserDetailContent(detail!!)
             }
+        }
+        GlassTopBackBar(backdrop = backdrop, scrolledPast = scrolledPast, onBack = onBack)
         }
     }
 }

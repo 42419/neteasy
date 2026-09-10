@@ -13,10 +13,12 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -26,6 +28,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,6 +43,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -61,6 +65,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.kyant.backdrop.backdrops.layerBackdrop
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -72,8 +77,10 @@ import top.yunov.neteasy.data.model.thumbnail
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.toPlayerSong
 import top.yunov.neteasy.ui.components.SongActionSheet
-import top.yunov.neteasy.ui.components.TactileBackButton
+import top.yunov.neteasy.ui.components.GlassTopBackBar
 import top.yunov.neteasy.ui.components.formatTime
+import top.yunov.neteasy.ui.components.isScrolledPast
+import top.yunov.neteasy.ui.components.rememberPageBackdrop
 import top.yunov.neteasy.ui.theme.ButtonShape
 import top.yunov.neteasy.ui.theme.ExpressiveMotion
 import top.yunov.neteasy.ui.theme.extractCoverSeedColor
@@ -157,6 +164,11 @@ fun PlaylistScreen(
         headerColor = detail?.coverUrl?.let { extractCoverSeedColor(context, it) }
     }
 
+    val backdrop = rememberPageBackdrop()
+    val lazyListState = rememberLazyListState()
+    val statusBarHeight = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
+    val scrolledPast by lazyListState.isScrolledPast(statusBarHeight + 24.dp)
+
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         // 之前整个 Column 套了一层 windowInsetsPadding(systemBars)，等于上下两条系统栏的高度都从
         // 页面内容里抠掉了一块——不只是状态栏底下那一截空白，连头图那块渐变色都被逼得没法贴到
@@ -181,7 +193,9 @@ fun PlaylistScreen(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("加载失败：$error")
-                        TactileBackButton(onClick = onBack, modifier = Modifier.padding(top = 12.dp))
+                        TextButton(onClick = onBack, modifier = Modifier.padding(top = 12.dp)) {
+                            Text("返回")
+                        }
                     }
                 }
             else -> {
@@ -198,7 +212,8 @@ fun PlaylistScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
+                        state = lazyListState,
+                        modifier = Modifier.fillMaxSize().layerBackdrop(backdrop),
                         // 底部同时吃手势导航栏的实际高度 + 96dp 悬浮 Minibar 的净空，
                         // 这样最后几首歌能滚动到系统导航栏下面，而不是被一块固定 inset 拦住
                         contentPadding =
@@ -211,7 +226,6 @@ fun PlaylistScreen(
                                 PlaylistHeader(
                                     pl = pl,
                                     headerColor = headerColor,
-                                    onBack = onBack,
                                     onPlayAll = {
                                         if (songs.isNotEmpty()) {
                                             player.playQueue(songs.map { it.toPlayerSong() }, 0)
@@ -232,6 +246,7 @@ fun PlaylistScreen(
                             )
                         }
                     }
+                    GlassTopBackBar(backdrop = backdrop, scrolledPast = scrolledPast, onBack = onBack)
                 }
             }
         }
@@ -255,11 +270,12 @@ fun PlaylistScreen(
 /**
  * 头图区：封面取色渐变 → 背景色。封面 + 歌单名/创建者/播放·收藏·评论数 并排，
  * 下面依次是简介（超过 2 行截断）、标签（有的话）、播放全部按钮——参考网易云歌单页
- * 从上到下的信息顺序。返回按钮悬浮在最上面，不跟歌单名再重复一遍标题。
+ * 从上到下的信息顺序。返回按钮改成悬浮在 LazyColumn 外面的 GlassTopBackBar 了，
+ * 这里不用再自己塞一个。
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PlaylistHeader(pl: Playlist, headerColor: Color?, onBack: () -> Unit, onPlayAll: () -> Unit) {
+private fun PlaylistHeader(pl: Playlist, headerColor: Color?, onPlayAll: () -> Unit) {
     Box(
         modifier =
         Modifier
@@ -276,13 +292,13 @@ private fun PlaylistHeader(pl: Playlist, headerColor: Color?, onBack: () -> Unit
         Column(
             modifier =
             Modifier
-                // 渐变背景（外层 Box）本身贴着屏幕最顶，这里只让「返回按钮往下的内容」躲开状态栏，
+                // 渐变背景（外层 Box）本身贴着屏幕最顶，这里只让内容躲开状态栏 + 悬浮返回按钮，
                 // 背景色能一路铺到状态栏底下，而不是整块头图被状态栏的高度顶下去一截
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            TactileBackButton(onClick = onBack)
-            Row(modifier = Modifier.padding(top = 12.dp)) {
+            Spacer(modifier = Modifier.height(80.dp))
+            Row {
                 AsyncImage(
                     model = pl.coverUrl.thumbnail(360),
                     contentDescription = null,

@@ -24,3 +24,10 @@
 # ---- vendored AMLL 渲染器（top.met6.amll） ----
 # 模块不大，整体 keep，避免任何 Compose/反射相关的意外裁掉导致歌词渲染异常。
 -keep class top.met6.amll.** { *; }
+
+# ---- Kyant0/AndroidLiquidGlass（io.github.kyant0:backdrop） ----
+# 之前引入这个库在 release 包上崩过，没排除过是不是 R8 裁剪/改名导致的
+# （这个库自己的 consumer-rules.pro 是空的，没有内置保护）。这次先整体 keep 住，
+# 如果加了这条规则还是崩，就能排除 R8 这个嫌疑，缩小到渲染管线本身的问题。
+-keep class com.kyant.backdrop.** { *; }
+-keepclassmembers class com.kyant.backdrop.** { *; }

@@ -2,10 +2,12 @@ package top.yunov.neteasy.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -35,10 +37,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.kyant.backdrop.backdrops.layerBackdrop
 import kotlin.math.roundToInt
 import top.yunov.neteasy.data.LyricFont
 import top.yunov.neteasy.data.LyricSpringPreset
-import top.yunov.neteasy.ui.components.TactileBackButton
+import top.yunov.neteasy.ui.components.GlassTopBackBar
+import top.yunov.neteasy.ui.components.isScrolledPast
+import top.yunov.neteasy.ui.components.rememberPageBackdrop
 
 /**
  * 歌词渲染细节设置页：从「设置」进入的独立页面。
@@ -84,22 +89,28 @@ fun LyricSettingsScreen(
     // Surface 之前是 fillMaxWidth()——只管宽度，高度完全由内容撑开；这个页面内容一般比屏幕矮，
     // 背景色实际只画到内容底部就没了，屏幕剩下的部分露出 Activity 主题的默认背景（不是本页
     // 背景色，深色模式下尤其显眼的一条色差），改成 fillMaxSize() 背景才会铺满整个屏幕。
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainerLowest) {
+    val pageBackgroundColor = MaterialTheme.colorScheme.surfaceContainerLowest
+    val statusBarHeight = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
+    val scrollState = rememberScrollState()
+    val backdrop = rememberPageBackdrop(pageBackgroundColor)
+    val scrolledPast by scrollState.isScrolledPast(statusBarHeight + 24.dp)
+
+    Surface(modifier = Modifier.fillMaxSize(), color = pageBackgroundColor) {
+        Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier =
             Modifier
                 .fillMaxSize()
+                .layerBackdrop(backdrop)
                 // insets 挪到 verticalScroll 后面：放前面会把系统栏高度从可滚动视口本身抠掉，
                 // 内容永远滚不到状态栏/手势导航栏底下
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .windowInsetsPadding(WindowInsets.systemBars)
                 .padding(20.dp)
         ) {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                TactileBackButton(onClick = onBack)
-                Spacer(modifier = Modifier.width(12.dp))
-                Text("歌词", style = MaterialTheme.typography.headlineLarge)
-            }
+            // 给顶部固定的返回按钮留出空间，标题本身还是跟内容一起滚动
+            Spacer(modifier = Modifier.height(80.dp))
+            Text("歌词", style = MaterialTheme.typography.headlineLarge)
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -227,6 +238,13 @@ fun LyricSettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+        GlassTopBackBar(
+            backdrop = backdrop,
+            scrolledPast = scrolledPast,
+            onBack = onBack,
+            pageBackgroundColor = pageBackgroundColor
+        )
         }
     }
 

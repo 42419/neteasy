@@ -290,6 +290,8 @@ dependencies {
     // 播放系统集成：音频焦点 + MediaSession（锁屏/通知栏/蓝牙耳机控制）+ 前台播放服务
     implementation(libs.androidx.media)
     implementation(libs.androidx.lifecycle.service)
+    // 只给设置页返回按钮用，测完崩不崩就知道要不要留
+    implementation(libs.backdrop)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

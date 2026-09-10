@@ -13,6 +13,9 @@ material3 = "1.5.0-alpha25"
 okhttp = "4.12.0"
 coil = "2.7.0"
 media = "1.7.0"
+# Kyant0/AndroidLiquidGlass —只在 SettingsScreen 返回按钮这一处试用，用来复现之前的闪退，
+# 拿到真正的 Logcat 堆栈再定位问题（之前用 glasense-ui 包了一层，没能留住崩溃现场）
+backdrop = "2.0.0-alpha03"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -30,6 +33,7 @@ androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+backdrop = { group = "io.github.kyant0", name = "backdrop", version.ref = "backdrop" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 androidx-media = { group = "androidx.media", name = "media", version.ref = "media" }
 androidx-lifecycle-service = { group = "androidx.lifecycle", name = "lifecycle-service", version.ref = "lifecycleRuntimeKtx" }
