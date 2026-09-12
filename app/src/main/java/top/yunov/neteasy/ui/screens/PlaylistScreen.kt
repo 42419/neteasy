@@ -77,6 +77,7 @@ import top.yunov.neteasy.data.model.thumbnail
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.toPlayerSong
 import top.yunov.neteasy.ui.components.SongActionSheet
+import top.yunov.neteasy.ui.components.MinibarClearance
 import top.yunov.neteasy.ui.components.GlassTopBackBar
 import top.yunov.neteasy.ui.components.formatTime
 import top.yunov.neteasy.ui.components.isScrolledPast
@@ -218,7 +219,7 @@ fun PlaylistScreen(
                         // 这样最后几首歌能滚动到系统导航栏下面，而不是被一块固定 inset 拦住
                         contentPadding =
                         PaddingValues(
-                            bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 96.dp
+                            bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + MinibarClearance
                         )
                     ) {
                         if (pl != null) {

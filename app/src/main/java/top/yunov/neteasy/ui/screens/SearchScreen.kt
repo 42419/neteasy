@@ -76,6 +76,7 @@ import top.yunov.neteasy.data.model.thumbnail
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.toPlayerSong
 import top.yunov.neteasy.ui.components.SongActionSheet
+import top.yunov.neteasy.ui.components.MinibarClearance
 import top.yunov.neteasy.ui.components.GlassTopBackBar
 import top.yunov.neteasy.ui.components.rememberPageBackdrop
 import top.yunov.neteasy.ui.theme.ButtonShape
@@ -228,7 +229,7 @@ fun SearchScreen(
                         LazyColumn(
                             modifier = Modifier.fillMaxSize().padding(top = 12.dp),
                             // 底部留白让最后几首歌不会被悬浮 Minibar 挡住
-                            contentPadding = PaddingValues(bottom = 96.dp),
+                            contentPadding = PaddingValues(bottom = MinibarClearance),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             itemsIndexed(results, key = { _, song -> song.id }) { index, song ->
@@ -246,7 +247,7 @@ fun SearchScreen(
                 // 空态：热搜 + 搜索历史
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(top = 12.dp),
-                    contentPadding = PaddingValues(bottom = 96.dp)
+                    contentPadding = PaddingValues(bottom = MinibarClearance)
                 ) {
                     if (hotKeywords.isNotEmpty()) {
                         item {
@@ -273,7 +274,7 @@ fun SearchScreen(
                 // 输入中：展示建议词
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(top = 8.dp),
-                    contentPadding = PaddingValues(bottom = 96.dp)
+                    contentPadding = PaddingValues(bottom = MinibarClearance)
                 ) {
                     itemsIndexed(suggestions, key = { _, s -> s }) { _, keyword ->
                         Row(

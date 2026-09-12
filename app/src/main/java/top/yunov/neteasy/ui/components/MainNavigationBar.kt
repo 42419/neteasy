@@ -22,6 +22,13 @@ val LocalNavState =
     }
 
 /**
+ * M3 标准 NavigationBar 高度。[PlayerAwareContent] 的 `minibarBottomPadding` 和
+ * Home/我的两个 Tab 页面自己的列表底部留白都要用到这个数，抽出来一个常量，不要
+ * 各处各写一份 80dp。
+ */
+val MainNavigationBarHeight = 80.dp
+
+/**
  * 首页/我的两个 Tab 的底部导航（仅 MainActivity 用）。容器背景设为透明——
  * 不要那条实色背景条，图标/文字直接浮在页面背景色上，视觉上跟上方悬浮的
  * [PlayerMinibar] 融为一体，只有那张悬浮卡片本身带一点浅色底和阴影。

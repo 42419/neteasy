@@ -65,6 +65,8 @@ import top.yunov.neteasy.data.model.Song
 import top.yunov.neteasy.data.model.thumbnail
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.toPlayerSong
+import top.yunov.neteasy.ui.components.MainNavigationBarHeight
+import top.yunov.neteasy.ui.components.MinibarClearance
 import top.yunov.neteasy.ui.theme.ExpressiveMotion
 
 /**
@@ -158,7 +160,10 @@ fun HomeScreen(
         else ->
             LazyColumn(
                 modifier = modifier,
-                contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp),
+                // bottom 留够 Minibar 悬浮在首页/我的这两个 Tab 上方的净空（导航栏高度 +
+                // Minibar 自身视觉高度），之前只留了 16dp，最后一组内容会被 Minibar 挡住
+                contentPadding =
+                PaddingValues(top = 16.dp, bottom = MainNavigationBarHeight + MinibarClearance),
                 // section 之间留够呼吸感（24dp）
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {

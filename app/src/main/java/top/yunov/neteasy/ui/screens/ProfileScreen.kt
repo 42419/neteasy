@@ -51,6 +51,8 @@ import top.yunov.neteasy.data.LikeRepository
 import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.model.Playlist
 import top.yunov.neteasy.data.model.thumbnail
+import top.yunov.neteasy.ui.components.MainNavigationBarHeight
+import top.yunov.neteasy.ui.components.MinibarClearance
 import top.yunov.neteasy.ui.theme.ButtonShape
 
 /**
@@ -115,7 +117,15 @@ fun ProfileScreen(
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(20.dp)
+            // bottom 单独放大：跟 HomeScreen 一样得给悬浮在上面的 Minibar 留够净空，
+            // 不然「我的」页面滚到底最后一块内容会被挡住
+            contentPadding =
+            PaddingValues(
+                start = 20.dp,
+                end = 20.dp,
+                top = 20.dp,
+                bottom = MainNavigationBarHeight + MinibarClearance
+            )
         ) {
             item {
                 Text("我的", style = MaterialTheme.typography.headlineLarge)

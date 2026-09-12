@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -32,6 +33,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -297,15 +299,26 @@ fun PlayerAwareContent(
         // 展开播放页：跟 Minibar 共用同一条 expansionFraction 驱动交叉淡入淡出 + 从底部
         // 升起，不是固定时长的转场——进度由拖动或点击触发的弹簧动画连续给出，手指拖到哪
         // 屏幕就跟到哪。fraction 完全为 0 且逻辑状态也是收起时才跳过渲染，省一次合成。
+        //
+        // 之前这里只有 alpha 淡入 + translationY 平移，跟下面淡出的 Minibar 是两套互相
+        // 独立的运动，看着像"一个消失、另一个从下面滑进来"，不连贯。这次加了圆角
+        // （从 Minibar 卡片同款的 24dp 收平到 0）+ 轻微缩放（96%→100%），让全屏播放页
+        // 视觉上更像是从 Minibar 那张圆角卡片本身"长出来、展开到位"的，首尾呼应上
+        // Minibar 的圆角，而不是另一套完全独立的 UI 平移淡入进来。
         if (expansionFraction.value > 0.001f || sheetTarget == SheetTarget.EXPANDED) {
             Box(
                 modifier =
                 Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        val fraction = expansionFraction.value
-                        alpha = fraction.coerceIn(0f, 1f)
+                        val fraction = expansionFraction.value.coerceIn(0f, 1f)
+                        alpha = fraction
                         translationY = (1f - fraction) * dragExtentPx
+                        shape = RoundedCornerShape(lerp(24.dp, 0.dp, fraction))
+                        clip = true
+                        val scale = 0.96f + 0.04f * fraction
+                        scaleX = scale
+                        scaleY = scale
                     }
             ) {
                 NowPlayingScreen(

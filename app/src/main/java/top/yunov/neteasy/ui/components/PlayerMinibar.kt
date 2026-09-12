@@ -24,6 +24,14 @@ import top.yunov.neteasy.data.model.thumbnail
 import top.yunov.neteasy.player.PlayerController
 
 /**
+ * Minibar 自身的视觉高度：卡片内容 60dp（Row 8dp 上下 padding + 44dp 封面）+ 卡片自己的
+ * 8dp*2 外边距 = 76dp。所有接入 Minibar 的页面预留底部空间时都按这一个常量 + 一点呼吸
+ * 空间来算，不要在各个页面各写各的数字——之前就是因为各页面各算各的，Home/我的两个
+ * 主 Tab 漏算了，最后几个列表项会被浮在上面的 Minibar 挡住。
+ */
+val MinibarClearance = 96.dp
+
+/**
  * 悬浮迷你播放器（紧凑单行：封面 + 歌名/歌手 + 播放暂停 + 播放队列，点击展开全屏播放页）。
  * 上一首/下一首/进度条/音质切换这些完整控制留在展开播放页（NowPlayingScreen），
  * 折叠态只做最核心的信息展示和播放/暂停，不重复堆控件。

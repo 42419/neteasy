@@ -54,6 +54,7 @@ import top.yunov.neteasy.data.model.Song
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.toPlayerSong
 import top.yunov.neteasy.ui.components.SongActionSheet
+import top.yunov.neteasy.ui.components.MinibarClearance
 import top.yunov.neteasy.ui.components.GlassTopBackBar
 import top.yunov.neteasy.ui.components.isScrolledPast
 import top.yunov.neteasy.ui.components.rememberPageBackdrop
@@ -157,7 +158,7 @@ fun DailyRecommendScreen(
                         // 系统导航栏下面，而不是被一块固定 inset 拦住（同歌单详情页的改法）
                         contentPadding =
                         PaddingValues(
-                            bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 96.dp
+                            bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + MinibarClearance
                         )
                     ) {
                         item {

@@ -32,7 +32,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -40,6 +39,7 @@ import top.yunov.neteasy.data.SettingsStore
 import top.yunov.neteasy.data.ThemeMode
 import top.yunov.neteasy.ui.screens.HomeScreen
 import top.yunov.neteasy.ui.components.MainNavigationBar
+import top.yunov.neteasy.ui.components.MainNavigationBarHeight
 import top.yunov.neteasy.ui.components.NavState
 import top.yunov.neteasy.ui.player.PlayerAwareContent
 import top.yunov.neteasy.ui.screens.ProfileScreen
@@ -195,7 +195,7 @@ private fun NcmApp(settings: SettingsStore) {
         player = player,
         likeRepository = likeRepository,
         modifier = Modifier.fillMaxSize(),
-        minibarBottomPadding = 80.dp
+        minibarBottomPadding = MainNavigationBarHeight
     ) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
