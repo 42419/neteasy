@@ -16,7 +16,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
@@ -26,7 +27,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -132,7 +132,10 @@ fun ProfileScreen(
             }
             item { Spacer(modifier = Modifier.height(24.dp)) }
 
-            // 用户卡片：登录后可点击进入个人信息详情页
+            // 用户卡片：横向布局（头像 + 昵称/VIP/状态），登录后整卡可点进个人信息详情页。
+            // 之前是纵向居中堆叠（大头像/昵称/VIP/提示语/全宽按钮全挤一张卡），一张卡占了
+            // 半个屏幕；横向卡片只占一条，「退出登录」挪到下面的功能菜单组里（跟官方 App
+            // 把账号操作收进菜单一行的习惯一致），卡片本身回归纯信息展示
             item {
             Column(
                 modifier =
@@ -141,102 +144,90 @@ fun ProfileScreen(
                     .clip(MaterialTheme.shapes.extraLarge)
                     .background(MaterialTheme.colorScheme.surfaceContainerLow)
                     .then(if (nickname != null) Modifier.clickable { onOpenUserDetail(uid) } else Modifier)
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .padding(20.dp)
             ) {
                 when {
-                    checking -> LoadingIndicator()
+                    checking ->
+                        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            LoadingIndicator()
+                        }
                     nickname != null -> {
-                        AsyncImage(
-                            model = avatarUrl?.thumbnail(200),
-                            contentDescription = "头像",
-                            modifier =
-                            Modifier
-                                .size(88.dp)
-                                .clip(CircleShape)
-                                .border(3.dp, MaterialTheme.colorScheme.primary, CircleShape),
-                            contentScale = ContentScale.Crop
-                        )
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Text(nickname!!, style = MaterialTheme.typography.titleLarge)
-                        Spacer(modifier = Modifier.height(6.dp))
-                        if (vipType > 0) {
-                            // 顶部 VIP 徽标（点进详情页可见完整等级）
-                            Text(
-                                text = if (vipType == 11) "黑胶VIP" else "VIP",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onPrimary,
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            AsyncImage(
+                                model = avatarUrl?.thumbnail(200),
+                                contentDescription = "头像",
                                 modifier =
                                 Modifier
+                                    .size(56.dp)
                                     .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primary)
-                                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                                    .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
+                                contentScale = ContentScale.Crop
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(nickname!!, style = MaterialTheme.typography.titleLarge)
+                                    if (vipType > 0) {
+                                        // VIP 徽标跟在昵称后面，不再单独占一行
+                                        Text(
+                                            text = if (vipType == 11) "黑胶VIP" else "VIP",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onPrimary,
+                                            modifier =
+                                            Modifier
+                                                .padding(start = 8.dp)
+                                                .clip(CircleShape)
+                                                .background(MaterialTheme.colorScheme.primary)
+                                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    "已登录 · 点击查看个人信息",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                            }
                         }
-                        Text(
-                            "已登录 · 点击查看个人信息",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
                     }
                     else -> {
-                        Box(
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier =
+                                Modifier
+                                    .size(56.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primaryContainer),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Filled.Person,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(30.dp),
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
+                                Text("未登录", style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    "登录后可播放完整歌曲（VIP 歌曲需会员）",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = onLoginClick,
+                            shape = ButtonShape,
                             modifier =
                             Modifier
-                                .size(72.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primaryContainer),
-                            contentAlignment = Alignment.Center
+                                .fillMaxWidth()
+                                .height(48.dp)
                         ) {
-                            Icon(
-                                Icons.Filled.Person,
-                                contentDescription = null,
-                                modifier = Modifier.size(40.dp),
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
+                            Text("扫码登录", style = MaterialTheme.typography.titleSmall)
                         }
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Text("未登录", style = MaterialTheme.typography.titleMedium)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            "登录后可播放完整歌曲（VIP 歌曲需会员）",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                if (nickname == null && !checking) {
-                    Button(
-                        onClick = onLoginClick,
-                        shape = ButtonShape,
-                        modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .height(52.dp)
-                    ) {
-                        Text("扫码登录", style = MaterialTheme.typography.titleSmall)
-                    }
-                } else if (nickname != null) {
-                    OutlinedButton(
-                        onClick = {
-                            cookieStore.clear()
-                            nickname = null
-                            avatarUrl = null
-                            logoutRefreshKey++
-                        },
-                        shape = ButtonShape,
-                        modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .height(52.dp)
-                    ) {
-                        Text("退出登录", style = MaterialTheme.typography.titleSmall)
                     }
                 }
             }
@@ -263,6 +254,24 @@ fun ProfileScreen(
                         color = MaterialTheme.colorScheme.outlineVariant
                     )
                     MenuRow(icon = Icons.Filled.Settings, title = "设置", onClick = onOpenSettings)
+                    // 退出登录：从用户卡片里挪出来，作为菜单组最后一行（仅登录时显示）
+                    if (nickname != null) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 20.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+                        MenuRow(
+                            icon = Icons.AutoMirrored.Filled.Logout,
+                            title = "退出登录",
+                            showChevron = false,
+                            onClick = {
+                                cookieStore.clear()
+                                nickname = null
+                                avatarUrl = null
+                                logoutRefreshKey++
+                            }
+                        )
+                    }
                 }
             }
 
@@ -347,16 +356,16 @@ private fun PlaylistRow(playlist: Playlist, onClick: () -> Unit) {
             )
         }
         Icon(
-            Icons.AutoMirrored.Filled.ArrowForward,
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
 
-/** 菜单行：圆形图标容器 + 标题 + 箭头。onClick 为 null 时不响应点击 */
+/** 菜单行：圆形图标容器 + 标题 + chevron（[showChevron] 为 false 时不显示，用于「退出登录」这类操作行） */
 @Composable
-private fun MenuRow(icon: ImageVector, title: String, onClick: (() -> Unit)? = null) {
+private fun MenuRow(icon: ImageVector, title: String, showChevron: Boolean = true, onClick: (() -> Unit)? = null) {
     // clickable 要放在 padding 之前，点击高亮/涟漪范围才是整行，而不是缩进后剩下的一小块
     val base = Modifier.fillMaxWidth()
     Row(
@@ -388,10 +397,13 @@ private fun MenuRow(icon: ImageVector, title: String, onClick: (() -> Unit)? = n
                 .weight(1f)
                 .padding(start = 16.dp)
         )
-        Icon(
-            Icons.AutoMirrored.Filled.ArrowForward,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        if (showChevron) {
+            // M3 惯例：进入子页面的行尾用 > 形 chevron；ArrowForward(→) 是 iOS/外部跳转语义，换掉
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }

@@ -44,6 +44,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yunov.neteasy.data.model.Banner
 import top.yunov.neteasy.data.NcmRepository
@@ -110,6 +112,34 @@ fun HomeScreen(
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var retryKey by remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
+
+    // Banner 点击路由：按 targetType 决定 targetId 怎么用——
+    // 1000=歌单 → 打开歌单详情页；1=单曲 → 拉详情直接播放；10=专辑 → 拉专辑歌曲整队列播放。
+    // 其余类型（MV/数字专辑/H5 外链）没有对应页面或播放器，点了没反应是有意的（不加假跳转）。
+    fun onBannerClick(banner: Banner) {
+        when (banner.targetType) {
+            1000 -> onOpenPlaylist(banner.targetId)
+            1 ->
+                scope.launch {
+                    val songs =
+                        withContext(Dispatchers.IO) {
+                            runCatching { repository.songDetails(listOf(banner.targetId)) }.getOrDefault(emptyList())
+                        }
+                    songs.firstOrNull()?.let { player.playQueue(listOf(it.toPlayerSong()), 0) }
+                }
+            10 ->
+                scope.launch {
+                    val songs =
+                        withContext(Dispatchers.IO) {
+                            runCatching { repository.albumSongs(banner.targetId) }.getOrDefault(emptyList())
+                        }
+                    if (songs.isNotEmpty()) {
+                        player.playQueue(songs.map { it.toPlayerSong() }, 0)
+                    }
+                }
+        }
+    }
 
     LaunchedEffect(retryKey) {
         loading = true
@@ -164,8 +194,10 @@ fun HomeScreen(
                 // Minibar 自身视觉高度），之前只留了 16dp，最后一组内容会被 Minibar 挡住
                 contentPadding =
                 PaddingValues(top = 16.dp, bottom = MainNavigationBarHeight + MinibarClearance),
-                // section 之间留够呼吸感（24dp）
-                verticalArrangement = Arrangement.spacedBy(24.dp)
+                // section 之间留够呼吸感（28dp）；板块标题与板块内容合并进同一个 item，
+                // 内部只留 12dp——之前 header / 内容是两个独立 item，中间也吃了一份 24dp 的
+                // 板块间距，标题离自己带的内容太远，看着像标题属于上一个板块
+                verticalArrangement = Arrangement.spacedBy(28.dp)
             ) {
                 item {
                     Column(
@@ -173,19 +205,13 @@ fun HomeScreen(
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
                         SearchEntryBar(onClick = onOpenSearch)
-                        Column {
-                            // 强调排版 hero：大标题引导注意力（MD3 Expressive）
-                            Text("发现音乐", style = MaterialTheme.typography.headlineLarge)
-                            Text(
-                                "为你推荐",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        // 强调排版 hero：大标题引导注意力（MD3 Expressive）。
+                        // 之前有行「为你推荐」副标题，跟下面「推荐歌单」「每日推荐」板块语义重复，删掉
+                        Text("发现音乐", style = MaterialTheme.typography.headlineLarge)
                     }
                 }
                 if (banners.isNotEmpty()) {
-                    item { BannerPager(banners) }
+                    item { BannerPager(banners, onBannerClick = ::onBannerClick) }
                 }
                 // 快捷入口：每日推荐 / 排行榜——网易云首页最上面那排彩色卡片的简化版，
                 // 只留了两个真正有数据支撑的入口。之前点「每日推荐」直接开始播放，
@@ -223,18 +249,18 @@ fun HomeScreen(
                 }
                 if (playlists.isNotEmpty()) {
                     item {
-                        SectionHeader(
-                            title = "推荐歌单",
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        )
-                    }
-                    item {
-                        LazyRow(
-                            contentPadding = PaddingValues(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            listItems(playlists, key = { it.id }) { playlist ->
-                                PlaylistCard(playlist, onClick = { onOpenPlaylist(playlist.id) })
+                        Column {
+                            SectionHeader(
+                                title = "推荐歌单",
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                            LazyRow(
+                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                listItems(playlists, key = { it.id }) { playlist ->
+                                    PlaylistCard(playlist, onClick = { onOpenPlaylist(playlist.id) })
+                                }
                             }
                         }
                     }
@@ -243,15 +269,15 @@ fun HomeScreen(
                 // 歌单详情页（onOpenPlaylist），不用另外做一个「榜单详情」页面
                 if (toplist.isNotEmpty()) {
                     item {
-                        SectionHeader(title = "排行榜", modifier = Modifier.padding(horizontal = 16.dp))
-                    }
-                    item {
-                        LazyRow(
-                            contentPadding = PaddingValues(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            listItems(toplist.take(10), key = { it.id }) { chart ->
-                                ChartCard(chart, onClick = { onOpenPlaylist(chart.id) })
+                        Column {
+                            SectionHeader(title = "排行榜", modifier = Modifier.padding(horizontal = 16.dp))
+                            LazyRow(
+                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                listItems(toplist.take(10), key = { it.id }) { chart ->
+                                    ChartCard(chart, onClick = { onOpenPlaylist(chart.id) })
+                                }
                             }
                         }
                     }
@@ -260,21 +286,21 @@ fun HomeScreen(
                 // 跟网易云本身「点歌曲即播放，不用先进详情页」的操作习惯一致
                 if (recommendSongs.isNotEmpty()) {
                     item {
-                        SectionHeader(title = "每日推荐", modifier = Modifier.padding(horizontal = 16.dp))
-                    }
-                    item {
-                        LazyRow(
-                            contentPadding = PaddingValues(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            listItems(recommendSongs.take(15), key = { it.id }) { song ->
-                                RecommendSongCard(
-                                    song = song,
-                                    onClick = {
-                                        val index = recommendSongs.indexOf(song)
-                                        player.playQueue(recommendSongs.map { it.toPlayerSong() }, index)
-                                    }
-                                )
+                        Column {
+                            SectionHeader(title = "每日推荐", modifier = Modifier.padding(horizontal = 16.dp))
+                            LazyRow(
+                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                listItems(recommendSongs.take(15), key = { it.id }) { song ->
+                                    RecommendSongCard(
+                                        song = song,
+                                        onClick = {
+                                            val index = recommendSongs.indexOf(song)
+                                            player.playQueue(recommendSongs.map { it.toPlayerSong() }, index)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -378,7 +404,7 @@ private fun SectionHeader(title: String, modifier: Modifier = Modifier, onMore: 
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BannerPager(banners: List<Banner>) {
+private fun BannerPager(banners: List<Banner>, onBannerClick: (Banner) -> Unit) {
     val realCount = banners.size
     if (realCount == 0) return
     // 只有 1 张时循环没有意义（划来划去都是它自己），虚拟总数直接等于真实数量，
@@ -424,17 +450,35 @@ private fun BannerPager(banners: List<Banner>) {
                     .height(180.dp)
             ) { index ->
                 val banner = banners[index % realCount]
-                AsyncImage(
-                    model = banner.picUrl.thumbnail(1200, 600),
-                    contentDescription = banner.typeTitle,
-                    modifier =
-                    Modifier
-                        .fillMaxSize()
-                        // 官方遮罩 modifier：随这张卡片当前的滚动位置（大图/中图/小图）连续
-                        // 变化圆角遮罩范围，是 Carousel「伸缩感」的关键，自己用 clip 做不出这个效果
-                        .maskClip(MaterialTheme.shapes.extraLarge),
-                    contentScale = ContentScale.Crop
-                )
+                Box(modifier = Modifier.fillMaxSize()) {
+                    AsyncImage(
+                        model = banner.picUrl.thumbnail(1200, 600),
+                        contentDescription = banner.typeTitle,
+                        modifier =
+                        Modifier
+                            .fillMaxSize()
+                            // 官方遮罩 modifier：随这张卡片当前的滚动位置（大图/中图/小图）连续
+                            // 变化圆角遮罩范围，是 Carousel「伸缩感」的关键，自己用 clip 做不出这个效果
+                            .maskClip(MaterialTheme.shapes.extraLarge)
+                            .clickable { onBannerClick(banner) },
+                        contentScale = ContentScale.Crop
+                    )
+                    // 类型角标（新歌首发/歌单推荐等）：既是信息也暗示「这张 banner 能点进去」
+                    if (banner.typeTitle != null) {
+                        Text(
+                            text = banner.typeTitle,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White,
+                            modifier =
+                            Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(12.dp)
+                                .clip(RoundedCornerShape(percent = 50))
+                                .background(Color.Black.copy(alpha = 0.45f))
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
             }
         }
         if (realCount > 1) {
@@ -498,7 +542,7 @@ private fun ShortcutCard(
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
-            }.aspectRatio(1.8f)
+            }.aspectRatio(2.2f)
             .clip(MaterialTheme.shapes.large)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
     ) {

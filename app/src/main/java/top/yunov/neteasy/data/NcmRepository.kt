@@ -48,6 +48,23 @@ class NcmRepository(private val api: ApiClient) {
         api.get("/playlist/track/all", mapOf("id" to "$id", "limit" to "$limit"))
     )
 
+    /**
+     * 按 id 批量取完整歌曲信息（/song/detail 的 songs 数组走 [JsonParser.parseSongs]，
+     * 封面/时长/音质档位一次拿全）。目前用于首页 Banner 的「单曲」类型点击直接播放。
+     */
+    suspend fun songDetails(ids: List<Long>): List<Song> = JsonParser.parseSongs(
+        api.get("/song/detail", mapOf("ids" to ids.joinToString(",")))
+    )
+
+    /**
+     * 专辑的全部歌曲（/album 返回 { album, songs }，songs 数组结构跟 /song/detail 一致，
+     * 直接复用 [JsonParser.parseSongs]）。目前用于首页 Banner 的「专辑」类型点击播放全部
+     * ——没有专辑详情页，不导航，拉出来直接当队列播。
+     */
+    suspend fun albumSongs(id: Long): List<Song> = JsonParser.parseSongs(
+        api.get("/album", mapOf("id" to "$id"))
+    )
+
     /** 不发请求，只读内存缓存；没有缓存返回 null。打开歌单页时先用它秒出上次的内容。 */
     fun cachedPlaylistOrNull(id: Long): Pair<Playlist, List<Song>>? = playlistCache[id]
 

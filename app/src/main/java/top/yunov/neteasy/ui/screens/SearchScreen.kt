@@ -30,7 +30,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -56,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -79,7 +79,7 @@ import top.yunov.neteasy.ui.components.SongActionSheet
 import top.yunov.neteasy.ui.components.MinibarClearance
 import top.yunov.neteasy.ui.components.GlassTopBackBar
 import top.yunov.neteasy.ui.components.rememberPageBackdrop
-import top.yunov.neteasy.ui.theme.ButtonShape
+import top.yunov.neteasy.ui.components.formatTime
 import top.yunov.neteasy.ui.theme.ExpressiveMotion
 
 /**
@@ -183,6 +183,8 @@ fun SearchScreen(
                 style = MaterialTheme.typography.headlineLarge,
                 modifier = Modifier.padding(start = 4.dp, bottom = 14.dp)
             )
+            // 输入框样式跟首页的胶囊搜索入口（SearchEntryBar）统一：全圆角 + 填充色、无描边——
+            // 之前是 OutlinedTextField 默认描边样式，跟首页胶囊是两套语言，点进来有割裂感
             OutlinedTextField(
                 value = query,
                 onValueChange = { onQueryChange(it) },
@@ -197,14 +199,15 @@ fun SearchScreen(
                     }
                 },
                 singleLine = true,
-                shape = ButtonShape,
+                shape = CircleShape,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { commitSearch(query) }),
                 colors =
                 OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                    focusedBorderColor = MaterialTheme.colorScheme.primary
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent
                 )
             )
 
@@ -367,8 +370,11 @@ private fun KeywordFlow(keywords: List<String>, onPick: (String) -> Unit) {
 }
 
 /**
- * 歌曲列表行（搜索 / 歌单详情共用）：Expressive 圆角容器 + 圆形播放图标。
+ * 歌曲列表行（搜索结果用）：Expressive 圆角容器 + 封面 + 标题/歌手 + 时长。
  * 按下时弹性缩小（spring）。
+ * 行尾原来是「圆形容器 + 播放三角」的装饰性图标——它没有独立点击行为（点的还是整行），
+ * 却长成一个按钮的样子，误导用户去点它；换成时长文字（歌单/日推列表 IndexedSongRow 同款
+ * 行尾），可点的整行才是唯一交互。
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -428,19 +434,11 @@ fun SongRow(song: Song, onClick: () -> Unit, onLongClick: () -> Unit = {}) {
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Box(
-            modifier =
-            Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceContainerHighest),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Filled.PlayArrow,
-                contentDescription = "播放",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(22.dp)
+        if (song.duration > 0) {
+            Text(
+                text = formatTime(song.duration),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

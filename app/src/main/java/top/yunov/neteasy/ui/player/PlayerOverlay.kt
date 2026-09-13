@@ -1,6 +1,6 @@
 package top.yunov.neteasy.ui.player
 
-import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import top.met6.amll.AppleMusicLyricPlayerStyle
 import top.yunov.neteasy.data.LikeRepository
@@ -213,8 +214,20 @@ fun PlayerAwareContent(
     }
 
     // 展开播放页仍然是 Compose 内覆盖层，不是独立 Activity——它是“同一播放器展开/收起”，
-    // 不是“跳转到新地方”；返回键走跟点收起按钮一样的弹簧动画收起它，不是硬切消失。
-    BackHandler(enabled = sheetTarget == SheetTarget.EXPANDED) { collapseSheet() }
+    // 不是“跳转到新地方”。预测性返回手势：返回手势的滑动进度实时映射成收起进度
+    // （全屏播放页跟着手指往下沉），松手确认就走跟点收起按钮一样的弹簧动画收起；
+    // 手势中途取消则弹簧回到展开态，不会硬切消失。
+    PredictiveBackHandler(enabled = sheetTarget == SheetTarget.EXPANDED) { progress ->
+        try {
+            progress.collect { event ->
+                expansionFraction.snapTo((1f - event.progress).coerceIn(0f, 1f))
+            }
+            collapseSheet()
+        } catch (e: CancellationException) {
+            expandSheet()
+            throw e
+        }
+    }
 
     // Minibar 上的拖动手势：作为 modifier 参数传入 PlayerMinibar，会排在 Surface 自带的
     // onClick（内部用 Modifier.clickable 实现）之前生效——拖动一旦越过触摸阈值就会

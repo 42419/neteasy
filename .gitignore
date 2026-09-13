@@ -30,3 +30,5 @@ local.properties
 # 发布签名 keystore：私钥文件，绝不能提交进仓库（CI 用 GitHub Secrets 传入）
 *.keystore
 *.jks
+
+/.workbuddy/

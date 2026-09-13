@@ -17,7 +17,7 @@ fun String.thumbnail(widthPx: Int, heightPx: Int = widthPx): String {
 }
 
 /** 首页轮播 Banner */
-data class Banner(val picUrl: String, val targetId: Long, val typeTitle: String?)
+data class Banner(val picUrl: String, val targetId: Long, val typeTitle: String?, val targetType: Int = 0)
 
 /** 歌单（推荐页 / 详情 / 我创建与收藏的） */
 data class Playlist(
@@ -122,7 +122,10 @@ object JsonParser {
             Banner(
                 picUrl = pic,
                 targetId = o.optLong("targetId"),
-                typeTitle = o.optString("typeTitle").takeIf { it.isNotBlank() }
+                typeTitle = o.optString("typeTitle").takeIf { it.isNotBlank() },
+                // targetType 决定 targetId 指向什么：1=单曲 10=专辑 1000=歌单
+                // （1004=MV / 3000=数字专辑 / 外部 H5 链接等没有对应页面，按不可点处理）
+                targetType = o.optInt("targetType")
             )
         }
     }

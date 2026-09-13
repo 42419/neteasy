@@ -29,7 +29,14 @@ fun CoverImage(
     url: String?,
     contentDescription: String?,
     modifier: Modifier = Modifier,
-    contentScale: ContentScale = ContentScale.Crop
+    contentScale: ContentScale = ContentScale.Crop,
+    /**
+     * 固定解码尺寸（px）：默认不传时 Coil 按 composable 的布局尺寸采样——播放页封面在
+     * 歌词态只有 56dp，会按 ~168px 解码入缓存，再放大回全宽就是糊的（尤其歌词态切歌，
+     * 这首歌的大图从没按全尺寸解码过）。播放页大封面传 900 钉死解码尺寸，
+     * 小图态是高清图缩小（依然锐利），放大回大封面直接用同一份缓存，秒出且清晰。
+     */
+    requestSizePx: Int? = null
 ) {
     val model = url?.takeIf { it.isNotBlank() }
     if (model == null) {
@@ -40,6 +47,7 @@ fun CoverImage(
         ImageRequest
             .Builder(LocalContext.current)
             .data(model)
+            .apply { if (requestSizePx != null) size(requestSizePx) }
             .crossfade(true)
             .build()
     SubcomposeAsyncImage(

@@ -1,19 +1,23 @@
 package top.yunov.neteasy.ui.player
 
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -21,16 +25,17 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -42,11 +47,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
+import androidx.compose.ui.unit.sp
 import top.yunov.neteasy.data.AudioQuality
 import top.yunov.neteasy.data.model.thumbnail
 import top.yunov.neteasy.player.PlayerController
@@ -68,9 +76,9 @@ import top.met6.amll.AppleMusicLyricPlayer
 import top.met6.amll.AppleMusicLyricPlayerStyle
 
 /**
- * 展开后的全屏播放页（点 Minibar 封面/歌名展开）：大标题 + 大封面 + 波浪进度条 + 播放控制。
- * 布局参考常见音乐 App 的“正在播放”页样式：顶部收起按钮，歌名/歌手居中，
- * 大幅封面图，音质/播放队列入口，时间 + 进度条，上一首/播放/下一首，循环模式。
+ * 展开后的全屏播放页（点 Minibar 封面/歌名展开）。
+ * 布局：顶部收起/队列 → 中部内容区（标题 + 封面 ↔ 小封面+标题+歌词 的连续弹簧过渡，
+ * 点封面切换）→ 波浪进度条 + 时间 → 大圆角方块播放控制 → 底部辅助行（循环/音质/歌词开关）。
  */
 @Composable
 fun NowPlayingScreen(
@@ -109,128 +117,175 @@ fun NowPlayingScreen(
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.systemBars)
                 .padding(horizontal = 28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // 顶部：收起按钮
+            // 顶部栏只留导航性质的两个按钮：收起 / 播放队列。
+            // 之前红心、词切换也堆在这一排（收起/红心/词/队列四个挤一排），功能混杂：
+            // 红心是对「这首歌」的操作，挪到歌名旁边；词切换是底部显示模式的开关，
+            // 挪到底部辅助控件行，跟循环模式/音质这些「播放器状态开关」归为一类
             Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onCollapse) {
                     Icon(Icons.Filled.ExpandMore, contentDescription = "收起")
                 }
                 Spacer(modifier = Modifier.weight(1f))
-                // 红心：喜欢/取消喜欢当前播放的歌
-                IconButton(onClick = onToggleLike) {
+                IconButton(onClick = onOpenQueue) {
+                    Icon(Icons.Filled.QueueMusic, contentDescription = "播放队列")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // 封面 ↔ 歌词 的连续过渡（点封面切换，也可以点底部辅助行的歌词图标）：
+            // 不用两个布局交叉淡入（那是「一个消失、另一个出现」，元素之间没有关系），
+            // 而是同一份封面/标题在尺寸与位置上做弹簧插值——视觉上就是封面缩小的同时
+            // 带着标题一起「飞」到左上角，下方整片区域淡入滚动歌词（参考 Apple Music /
+            // 参考截图的小封面+标题+全屏歌词布局）；再点左上角的小封面原路飞回大封面。
+            // t=0：标题整行 + 大封面在下方剩余空间居中；t=1：56dp 小封面贴左上，
+            // 标题右移到小封面旁边（收成单行小字），歌词占满下方。
+            BoxWithConstraints(
+                modifier =
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                val t by animateFloatAsState(
+                    targetValue = if (showLyrics) 1f else 0f,
+                    // 实测 ExpressiveMotion.SpatialDefault（MediumBouncy 过冲）用在这块大封面的
+                    // 位移+缩放上过弹了，封面飞过目标位置再弹回来的感觉很晃；换成同档位刚度、
+                    // 无过冲的弹簧——位移干净利落，靠 MediumLow 的低刚度保留一点缓和感
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    ),
+                    label = "coverLyricTransition"
+                )
+                val areaW = maxWidth
+                val areaH = maxHeight
+                // 标题块实际高度（封面模式下大封面要在「标题以下」的剩余空间里居中，得知道标题占了多少）
+                var titleH by remember { mutableIntStateOf(0) }
+                val titleHDp = with(LocalDensity.current) { titleH.toDp() }
+                val titleOffsetX = lerp(0.dp, 68.dp, t)
+                val coverCorner = lerp(28.dp, 12.dp, t)
+
+                // 歌词区：t 过半才进组合、退到一半就退出组合——挂载/卸载 AMLL 渲染器是
+                // 重操作，让它发生在动画中段（运动最快、视觉最不敏感的时刻），而不是像之前
+                // t>0.01 那样卡在端点：到位瞬间挂载一整棵歌词树，肉眼看到的就是「顿一下」。
+                // alpha 在 0.5~1 区间重新映射到 0~1，淡入依然连续
+                if (t > 0.5f) {
+                    Box(
+                        modifier =
+                        Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .height((areaH - 72.dp).coerceAtLeast(0.dp))
+                            .graphicsLayer { alpha = ((t - 0.5f) * 2f).coerceIn(0f, 1f) }
+                    ) {
+                        if (lyricLines.isNotEmpty()) {
+                            AppleMusicLyricPlayer(
+                                lyricLines = lyricLines,
+                                currentTimeMs = state.positionMs + lyricOffsetMs,
+                                isPlaying = state.isPlaying,
+                                modifier = Modifier.fillMaxSize(),
+                                style = lyricStyle,
+                                fontFamily = lyricFontFamily,
+                                onLineClick = { line ->
+                                    // 直接 seek line.startTime 会跳不准：LyricOptimizer 会把行的显示开始
+                                    // 时间提前最多 600ms 用于视觉过渡，这里用第一个有字的词的真实时间；
+                                    // 再反向扣除用户设置的歌词偏移，保证“点哪行播哪行”仍然对齐。
+                                    val lyricPosition =
+                                        line.words.firstOrNull { it.word.isNotBlank() }?.startTime
+                                            ?: line.startTime
+                                    onSeek(((lyricPosition - lyricOffsetMs).coerceAtLeast(0L)).toInt())
+                                }
+                            )
+                        } else {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = if (state.lyricLoading) "歌词加载中…" else "暂无歌词",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 标题块：封面模式整行靠左；歌词模式右移到小封面旁边、字号收小（逐帧插值，
+                // 跟封面的位移同一条弹簧曲线，两边节奏天然对齐）
+                Column(
+                    modifier =
+                    Modifier
+                        .offset(x = titleOffsetX)
+                        .fillMaxWidth()
+                        .padding(end = 48.dp)
+                        .onSizeChanged { titleH = it.height }
+                ) {
+                    Text(
+                        text = song.name,
+                        style =
+                        MaterialTheme.typography.headlineSmall.copy(
+                            fontSize = lerp(24.sp, 16.sp, t),
+                            lineHeight = lerp(32.sp, 22.sp, t)
+                        ),
+                        fontWeight = FontWeight.Bold,
+                        // maxLines 在 t≈1（到位）才收成 1 行：此时封面 y 已经贴 0，不再依赖
+                        // 标题高度，重排不会让封面跳；之前在 t>0.5 中途硬切，标题从两行变一行
+                        // 高度突变 → 封面 Y 目标值突变，就是到位前那一下「顿」
+                        maxLines = if (t > 0.99f) 1 else 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = song.artists,
+                        style =
+                        MaterialTheme.typography.bodyLarge.copy(
+                            fontSize = lerp(16.sp, 13.sp, t),
+                            lineHeight = lerp(24.sp, 18.sp, t)
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+
+                // 红心：固定在内容区右上角，两种模式位置一致，不参与过渡
+                IconButton(onClick = onToggleLike, modifier = Modifier.align(Alignment.TopEnd)) {
                     Icon(
                         imageVector = if (liked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                         contentDescription = if (liked) "取消喜欢" else "喜欢",
                         tint = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                // 歌词 / 封面切换
-                IconButton(onClick = { showLyrics = !showLyrics }) {
-                    Text(
-                        "词",
-                        style = MaterialTheme.typography.titleMedium,
-                        color =
-                        if (showLyrics) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        }
-                    )
-                }
-                IconButton(onClick = onOpenQueue) {
-                    Icon(Icons.Filled.QueueMusic, contentDescription = "播放队列")
-                }
-            }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // 歌名 / 歌手，居中，大标题。歌词视图时不显示——把这块高度让给滚动歌词区域，
-            // 歌词可视空间更大，也符合“看歌词时不重复看歌名”的常规习惯（顶部已有「词」开关）。
-            if (!showLyrics) {
-                Text(
-                    text = song.name,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Text(
-                    text = song.artists,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-                )
-            }
-
-            // 中部：封面 ↔ 歌词 切换（占据剩余高度，下方控件固定在底部）
-            Box(
-                modifier =
-                Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            ) {
-                if (showLyrics) {
-                    if (lyricLines.isNotEmpty()) {
-                        AppleMusicLyricPlayer(
-                            lyricLines = lyricLines,
-                            currentTimeMs = state.positionMs + lyricOffsetMs,
-                            isPlaying = state.isPlaying,
-                            modifier = Modifier.fillMaxSize(),
-                            style = lyricStyle,
-                            fontFamily = lyricFontFamily,
-                            onLineClick = { line ->
-                                // 直接 seek line.startTime 会跳不准：LyricOptimizer 会把行的显示开始
-                                // 时间提前最多 600ms 用于视觉过渡，这里用第一个有字的词的真实时间；
-                                // 再反向扣除用户设置的歌词偏移，保证“点哪行播哪行”仍然对齐。
-                                val lyricPosition =
-                                    line.words.firstOrNull { it.word.isNotBlank() }?.startTime
-                                        ?: line.startTime
-                                onSeek(((lyricPosition - lyricOffsetMs).coerceAtLeast(0L)).toInt())
-                            }
+                // 封面：尺寸/位置/圆角/阴影都随 t 插值，点击在两种模式间切换。
+                // 封面模式下在「标题以下」的剩余空间里垂直居中；歌词模式下贴左上角
+                val coverSize = lerp(areaW, 56.dp, t)
+                val coverYCentered =
+                    (titleHDp + (areaH - titleHDp - coverSize) / 2).coerceAtLeast(titleHDp)
+                CoverImage(
+                    url = song.picUrl.thumbnail(900),
+                    contentDescription = if (showLyrics) "返回封面视图" else "查看歌词",
+                    // 钉死 900px 解码：歌词态 56dp 小图是高清缩小（锐利），放大回大封面
+                    // 直接用同一份缓存——歌词态切下一首再回来，大图不会是按 56dp 采样的糊图
+                    requestSizePx = 900,
+                    modifier =
+                    Modifier
+                        .offset(y = lerp(coverYCentered, 0.dp, t))
+                        .size(coverSize)
+                        .shadow(
+                            elevation = lerp(16.dp, 0.dp, t),
+                            shape = RoundedCornerShape(coverCorner),
+                            ambientColor = Color.Black.copy(alpha = 0.3f)
                         )
-                    } else {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text(
-                                text = if (state.lyricLoading) "歌词加载中…" else "暂无歌词",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                } else {
-                    // 大封面：用统一样式的占位（底色 + 音符），加载出图后 crossfade 淡入
-                    CoverImage(
-                        url = song.picUrl.thumbnail(900),
-                        contentDescription = null,
-                        modifier =
-                        Modifier
-                            .align(Alignment.Center)
-                            .fillMaxWidth()
-                            .aspectRatio(1f)
-                            .shadow(elevation = 16.dp, shape = RoundedCornerShape(28.dp), ambientColor = Color.Black.copy(alpha = 0.3f))
-                            .clip(RoundedCornerShape(28.dp)),
-                        contentScale = ContentScale.Crop
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // 音质切换：只列这首歌实际存在的档位；未知（空集合）时不显示
-            if (song.availableQualities.isNotEmpty()) {
-                QualityChip(
-                    current = state.quality,
-                    available = song.availableQualities,
-                    onSelect = onQualityChange
+                        .clip(RoundedCornerShape(coverCorner))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { showLyrics = !showLyrics },
+                    contentScale = ContentScale.Crop
                 )
-                Spacer(modifier = Modifier.height(16.dp))
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // 平滑进度：与 Minibar 共用同一套逐帧插值逻辑，避免“一顿一顿”
             val smoothPositionMs =
@@ -295,9 +350,12 @@ fun NowPlayingScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // 循环模式：点击依次切换 顺序播放 → 列表循环 → 单曲循环，三种状态各用各的图标
+            // 底部辅助控件行：循环模式（左）| 音质（右）| 封面/歌词切换（右）。
+            // 之前循环模式单独占一整行居中孤立在页面最底，音质又单独一层在进度条上方，
+            // 三个「播放器状态开关」散在三个高度上；归拢到一行后，控件区是整齐的
+            // 「进度条 → 主控按钮 → 辅助开关」三层结构，纵向也省出一块给封面/歌词
             val repeatLabel =
                 when (state.repeatMode) {
                     RepeatMode.OFF -> "顺序播放"
@@ -312,8 +370,9 @@ fun NowPlayingScreen(
                 }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(bottom = 20.dp)
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
             ) {
+                // 循环模式：点击依次切换 顺序播放 → 列表循环 → 单曲循环，三种状态各用各的图标
                 IconButton(onClick = onCycleRepeat) {
                     when (state.repeatMode) {
                         // 顺序播放：一条直箭头，跟“循环”的环形箭头明显区分
@@ -334,6 +393,28 @@ fun NowPlayingScreen(
                     }
                 }
                 Text(repeatLabel, style = MaterialTheme.typography.labelMedium, color = repeatTint)
+                Spacer(modifier = Modifier.weight(1f))
+                // 音质切换：只列这首歌实际存在的档位；未知（空集合）时不显示
+                if (song.availableQualities.isNotEmpty()) {
+                    QualityChip(
+                        current = state.quality,
+                        available = song.availableQualities,
+                        onSelect = onQualityChange
+                    )
+                }
+                // 封面 / 歌词切换：文字「词」按钮换成歌词图标，跟同行的循环模式图标形态一致
+                IconButton(onClick = { showLyrics = !showLyrics }) {
+                    Icon(
+                        Icons.Filled.Lyrics,
+                        contentDescription = if (showLyrics) "显示封面" else "显示歌词",
+                        tint =
+                        if (showLyrics) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
             }
         }
     }
