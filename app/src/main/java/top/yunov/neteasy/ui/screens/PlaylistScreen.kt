@@ -3,6 +3,7 @@ package top.yunov.neteasy.ui.screens
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -69,8 +70,10 @@ import com.kyant.backdrop.backdrops.layerBackdrop
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yunov.neteasy.CommentsActivity
 import top.yunov.neteasy.data.LikeRepository
 import top.yunov.neteasy.data.NcmRepository
+import top.yunov.neteasy.data.model.CommentType
 import top.yunov.neteasy.data.model.Playlist
 import top.yunov.neteasy.data.model.Song
 import top.yunov.neteasy.data.model.thumbnail
@@ -231,6 +234,17 @@ fun PlaylistScreen(
                                         if (songs.isNotEmpty()) {
                                             player.playQueue(songs.map { it.toPlayerSong() }, 0)
                                         }
+                                    },
+                                    onOpenComments = {
+                                        context.startActivity(
+                                            CommentsActivity.intent(
+                                                context,
+                                                pl.id,
+                                                CommentType.PLAYLIST,
+                                                pl.name,
+                                                pl.coverUrl
+                                            )
+                                        )
                                     }
                                 )
                             }
@@ -263,7 +277,19 @@ fun PlaylistScreen(
             onToggleLike = {
                 scope.launch { likeRepository.toggle(sheetSong.id) }
             },
-            onDismiss = { actionSheetSong = null }
+            onDismiss = { actionSheetSong = null },
+            onOpenComments = {
+                actionSheetSong = null
+                context.startActivity(
+                    CommentsActivity.intent(
+                        context,
+                        sheetSong.id,
+                        CommentType.SONG,
+                        sheetSong.name,
+                        sheetSong.picUrl
+                    )
+                )
+            }
         )
     }
 }
@@ -276,7 +302,7 @@ fun PlaylistScreen(
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PlaylistHeader(pl: Playlist, headerColor: Color?, onPlayAll: () -> Unit) {
+private fun PlaylistHeader(pl: Playlist, headerColor: Color?, onPlayAll: () -> Unit, onOpenComments: () -> Unit) {
     Box(
         modifier =
         Modifier
@@ -355,7 +381,19 @@ private fun PlaylistHeader(pl: Playlist, headerColor: Color?, onPlayAll: () -> U
                     ) {
                         StatItem(Icons.Filled.PlayArrow, formatCount(pl.playCount))
                         if (pl.subscribedCount > 0) StatItem(Icons.Filled.Favorite, formatCount(pl.subscribedCount))
-                        if (pl.commentCount > 0) StatItem(Icons.AutoMirrored.Filled.Comment, formatCount(pl.commentCount))
+                        // 评论数可点 → 跳歌单评论区；评论数为 0 通常是接口没返回，不显示也不可点
+                        if (pl.commentCount > 0) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier =
+                                Modifier
+                                    .clip(RoundedCornerShape(percent = 50))
+                                    .clickable(onClick = onOpenComments)
+                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                            ) {
+                                StatItem(Icons.AutoMirrored.Filled.Comment, formatCount(pl.commentCount))
+                            }
+                        }
                     }
                 }
             }

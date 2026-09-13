@@ -68,9 +68,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yunov.neteasy.CommentsActivity
 import top.yunov.neteasy.data.LikeRepository
 import top.yunov.neteasy.data.NcmRepository
 import top.yunov.neteasy.data.SearchHistoryStore
+import top.yunov.neteasy.data.model.CommentType
 import top.yunov.neteasy.data.model.Song
 import top.yunov.neteasy.data.model.thumbnail
 import top.yunov.neteasy.player.PlayerController
@@ -330,7 +332,19 @@ fun SearchScreen(
             onToggleLike = {
                 scope.launch { likeRepository.toggle(sheetSong.id) }
             },
-            onDismiss = { actionSheetSong = null }
+            onDismiss = { actionSheetSong = null },
+            onOpenComments = {
+                actionSheetSong = null
+                context.startActivity(
+                    CommentsActivity.intent(
+                        context,
+                        sheetSong.id,
+                        CommentType.SONG,
+                        sheetSong.name,
+                        sheetSong.picUrl
+                    )
+                )
+            }
         )
     }
 }

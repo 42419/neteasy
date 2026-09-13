@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -27,8 +28,9 @@ import top.yunov.neteasy.data.model.thumbnail
 
 /**
  * 歌曲行长按弹出的操作面板：头部是歌曲信息，下面是可执行的操作列表。
- * 目前只有「喜欢/取消喜欢」一项，后续「下一首播放」「添加到歌单」等直接往 [actions] 里加行即可，
- * 不用再改调用方——各歌曲行（[IndexedSongRow]、搜索结果行等）统一长按弹出同一个组件。
+ * 「查看评论」需要 [onOpenComments]（由调用方带着 songId 跳转评论区），不传则不显示该行。
+ * 后续「下一首播放」「添加到歌单」等直接往下面加行即可，
+ * 不用再改调用方结构——各歌曲行（[IndexedSongRow]、搜索结果行等）统一长按弹出同一个组件。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,7 +40,8 @@ fun SongActionSheet(
     songPicUrl: String,
     liked: Boolean,
     onToggleLike: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onOpenComments: (() -> Unit)? = null
 ) {
     val sheetState = rememberModalBottomSheetState()
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
@@ -97,6 +100,27 @@ fun SongActionSheet(
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.padding(start = 20.dp)
             )
+        }
+        if (onOpenComments != null) {
+            Row(
+                modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenComments() }
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Comment,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "查看评论",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(start = 20.dp)
+                )
+            }
         }
     }
 }

@@ -3,6 +3,8 @@ package top.yunov.neteasy.data
 import java.util.concurrent.ConcurrentHashMap
 import org.json.JSONObject
 import top.yunov.neteasy.data.model.Banner
+import top.yunov.neteasy.data.model.Comment
+import top.yunov.neteasy.data.model.CommentPage
 import top.yunov.neteasy.data.model.JsonParser
 import top.yunov.neteasy.data.model.Playlist
 import top.yunov.neteasy.data.model.Song
@@ -64,6 +66,61 @@ class NcmRepository(private val api: ApiClient) {
     suspend fun albumSongs(id: Long): List<Song> = JsonParser.parseSongs(
         api.get("/album", mapOf("id" to "$id"))
     )
+
+    /**
+     * 一页评论（/comment/new）。type 见 [top.yunov.neteasy.data.model.CommentType]；
+     * sortType 99=推荐 2=热度 3=最新。按最新排序时分页靠 cursor（上一页返回值原样传回，
+     * 首页传空），推荐/热度后端按 pageNo 自己算偏移，cursor 不用管。
+     */
+    suspend fun comments(
+        id: Long,
+        type: Int,
+        pageNo: Int,
+        sortType: Int = 99,
+        cursor: String = "",
+        pageSize: Int = 20
+    ): CommentPage =
+        JsonParser.parseCommentPage(
+            api.get(
+                "/comment/new",
+                buildMap {
+                    put("id", "$id")
+                    put("type", "$type")
+                    put("pageNo", "$pageNo")
+                    put("pageSize", "$pageSize")
+                    put("sortType", "$sortType")
+                    if (cursor.isNotBlank()) put("cursor", cursor)
+                }
+            )
+        )
+
+    /** 评论点赞/取消点赞（/comment/like，t=1 赞 0 取消）。返回服务端是否成功。 */
+    suspend fun likeComment(id: Long, commentId: Long, like: Boolean, type: Int): Boolean =
+        api.get(
+            "/comment/like",
+            mapOf(
+                "id" to "$id",
+                "cid" to "$commentId",
+                "t" to if (like) "1" else "0",
+                "type" to "$type"
+            )
+        ).optInt("code") == 200
+
+    /**
+     * 发评论（/comment/add，需要登录态）。成功返回解析出的新评论（调用方插到列表头），
+     * 服务端返回结构不含新评论时返回 null（调用方刷新首页兜底）；失败抛异常。
+     */
+    suspend fun addComment(id: Long, type: Int, content: String): Comment? {
+        val root =
+            api.get(
+                "/comment/add",
+                mapOf("id" to "$id", "type" to "$type", "content" to content)
+            )
+        if (root.optInt("code") != 200) {
+            throw IllegalStateException(root.optString("message").ifBlank { "评论失败" })
+        }
+        return JsonParser.parseAddedComment(root)
+    }
 
     /** 不发请求，只读内存缓存；没有缓存返回 null。打开歌单页时先用它秒出上次的内容。 */
     fun cachedPlaylistOrNull(id: Long): Pair<Playlist, List<Song>>? = playlistCache[id]

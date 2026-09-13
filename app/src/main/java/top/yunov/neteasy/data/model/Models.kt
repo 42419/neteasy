@@ -110,6 +110,37 @@ data class UserDetail(
             }
 }
 
+/** 评论资源类型（/comment/new 等接口的 type 参数）：0=歌曲 2=歌单 3=专辑，其余类型暂不接 */
+object CommentType {
+    const val SONG = 0
+    const val PLAYLIST = 2
+    const val ALBUM = 3
+}
+
+/** 一条评论（/comment/new 的 data.comments 元素；beReplied 是被引用回复的原评论摘要） */
+data class Comment(
+    val id: Long,
+    val content: String,
+    val userId: Long,
+    val userNickname: String,
+    val userAvatarUrl: String,
+    val vipType: Int,
+    val timeStr: String,
+    val likedCount: Int,
+    val liked: Boolean,
+    val replyCount: Int,
+    val beRepliedContent: String?,
+    val beRepliedNickname: String?
+)
+
+/** 一页评论：/comment/new 的 data 部分。cursor 是「按时间排序」分页用的游标，下一页原样传回 */
+data class CommentPage(
+    val comments: List<Comment>,
+    val totalCount: Int,
+    val hasMore: Boolean,
+    val cursor: String
+)
+
 // ---------- JSON 解析 ----------
 
 object JsonParser {
@@ -355,6 +386,54 @@ object JsonParser {
             gender = profile.optInt("gender", 0),
             signature = profile.optString("signature"),
             createTime = profile.optLong("createTime", 0L)
+        )
+    }
+
+    /**
+     * /comment/new 一页评论（data.{comments,totalCount,hasMore,cursor}）。
+     * cursor 只在「按时间排序」（sortType=3）时分页用，推荐/热度排序后端按 pageNo 算偏移。
+     */
+    fun parseCommentPage(root: JSONObject): CommentPage {
+        val data = root.optJSONObject("data") ?: return CommentPage(emptyList(), 0, false, "")
+        val arr = data.optJSONArray("comments")
+        val comments =
+            if (arr == null) {
+                emptyList()
+            } else {
+                (0 until arr.length()).mapNotNull { i -> parseComment(arr.optJSONObject(i)) }
+            }
+        return CommentPage(
+            comments = comments,
+            totalCount = data.optInt("totalCount"),
+            hasMore = data.optBoolean("hasMore"),
+            cursor = data.optString("cursor")
+        )
+    }
+
+    /** /comment/add 发评论成功时返回的新评论（comment 字段）；失败/结构不符返回 null，调用方走刷新兜底 */
+    fun parseAddedComment(root: JSONObject): Comment? = parseComment(root.optJSONObject("comment"))
+
+    private fun parseComment(o: JSONObject?): Comment? {
+        if (o == null) return null
+        val id = o.optLong("commentId")
+        val user = o.optJSONObject("user")
+        if (id == 0L || user == null) return null
+        // beReplied 是被引用回复的原评论数组（通常 0 或 1 条），取第一条做引用摘要
+        val replied = o.optJSONArray("beReplied")?.optJSONObject(0)
+        return Comment(
+            id = id,
+            content = o.optString("content"),
+            userId = user.optLong("userId"),
+            userNickname = user.optString("nickname"),
+            userAvatarUrl = user.optString("avatarUrl"),
+            vipType = user.optInt("vipType", 0),
+            // timeStr 是后端格式化好的（「昨天 22:14」这种），没有就退到时间戳原样
+            timeStr = o.optString("timeStr").ifBlank { o.optLong("time").takeIf { it > 0 }?.toString() ?: "" },
+            likedCount = o.optInt("likedCount"),
+            liked = o.optBoolean("liked"),
+            replyCount = o.optInt("replyCount"),
+            beRepliedContent = replied?.optString("content")?.takeIf { it.isNotBlank() },
+            beRepliedNickname = replied?.optJSONObject("user")?.optString("nickname")?.takeIf { it.isNotBlank() }
         )
     }
 }

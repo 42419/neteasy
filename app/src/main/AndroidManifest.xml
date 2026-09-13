@@ -90,6 +90,13 @@
             android:label="个人信息"
             android:parentActivityName=".MainActivity"
             android:theme="@style/Theme.Neteasy" />
+        <activity
+            android:name=".CommentsActivity"
+            android:exported="false"
+            android:label="评论"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.Neteasy"
+            android:windowSoftInputMode="adjustResize" />
 
         <!-- 内嵌 Node.js 后端前台服务 -->
         <service

@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.backdrops.layerBackdrop
 import java.time.LocalDate
@@ -48,8 +49,10 @@ import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yunov.neteasy.CommentsActivity
 import top.yunov.neteasy.data.LikeRepository
 import top.yunov.neteasy.data.NcmRepository
+import top.yunov.neteasy.data.model.CommentType
 import top.yunov.neteasy.data.model.Song
 import top.yunov.neteasy.player.PlayerController
 import top.yunov.neteasy.player.toPlayerSong
@@ -93,6 +96,7 @@ fun DailyRecommendScreen(
     var actionSheetSong by remember { mutableStateOf<Song?>(null) }
     val likedIds by likeRepository.likedIds.collectAsState()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         try {
@@ -233,7 +237,19 @@ fun DailyRecommendScreen(
             onToggleLike = {
                 scope.launch { likeRepository.toggle(sheetSong.id) }
             },
-            onDismiss = { actionSheetSong = null }
+            onDismiss = { actionSheetSong = null },
+            onOpenComments = {
+                actionSheetSong = null
+                context.startActivity(
+                    CommentsActivity.intent(
+                        context,
+                        sheetSong.id,
+                        CommentType.SONG,
+                        sheetSong.name,
+                        sheetSong.picUrl
+                    )
+                )
+            }
         )
     }
 }
