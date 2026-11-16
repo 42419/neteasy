@@ -2,12 +2,11 @@
 # 项目级 R8 keep 规则（AGP 自动合并 src/main/keepRules 下的 *.keep 给 R8）
 # ============================================================
 
-# ---- nodejs-mobile JNI 桥 ----
-# 关键：NodeJS 的类名 + 外部 native 方法名不能被重命名。
-# native-lib.cpp 是通过 Java_top_yunov_neteasy_NodeJS_startNodeWithArguments
-# 这个固定符号名来注册/绑定 JNI 的，一旦 R8 把类或方法改名，符号对不上，
-# dlopen(node) / 注册会失败，内嵌 Node 后端直接起不来。
--keepclasseswithmembernames class top.yunov.neteasy.NodeJS {
+# ---- Rust 后端 JNI 入口 ----
+# 关键：RustBackend 的类名 + 外部 native 方法名不能被重命名。
+# libneteasy_backend.so 导出的符号是 Java_top_yunov_neteasy_RustBackend_start，
+# 一旦 R8 把类或方法改名，符号对不上，会抛 UnsatisfiedLinkError，内嵌后端直接起不来。
+-keepclasseswithmembernames class top.yunov.neteasy.RustBackend {
     native <methods>;
 }
 

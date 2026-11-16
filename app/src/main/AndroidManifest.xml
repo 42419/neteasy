@@ -2,9 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Node 后端访问网易云需要网络 -->
+    <!-- 本地后端访问网易云需要网络 -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- 前台服务：保持 Node 后端在后台存活 -->
+    <!-- 前台服务：保持本地后端在后台存活 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- 前台服务：播放通知（锁屏/通知栏控制），Android 14+ 需要显式声明该类型权限 -->
@@ -98,9 +98,9 @@
             android:theme="@style/Theme.Neteasy"
             android:windowSoftInputMode="adjustResize" />
 
-        <!-- 内嵌 Node.js 后端前台服务 -->
+        <!-- 内嵌 Rust 后端前台服务 -->
         <service
-            android:name=".bridge.NodeService"
+            android:name=".bridge.BackendService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 

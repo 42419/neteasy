@@ -54,7 +54,7 @@ import top.yunov.neteasy.ui.theme.NeteasyTheme
  * - 展开播放页 / 播放队列面板仍在 Compose 内实现（不是“跳转到新地方”，是同一播放器的
  *   展开/收起，语义上不适合拆成 Activity）
  * - 底部迷你播放栏：封面 + 歌名 + 播放/暂停
- * - 所有网络请求走本地 Node 后端（127.0.0.1:19800）
+ * - 所有网络请求走本地后端（127.0.0.1:19800）
  */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

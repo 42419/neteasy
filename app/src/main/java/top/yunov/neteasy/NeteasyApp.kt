@@ -7,7 +7,7 @@ import android.os.Bundle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import top.yunov.neteasy.bridge.NodeService
+import top.yunov.neteasy.bridge.BackendService
 import top.yunov.neteasy.data.ApiClient
 import top.yunov.neteasy.data.LikeRepository
 import top.yunov.neteasy.data.LyricRepository
@@ -18,7 +18,7 @@ import top.yunov.neteasy.ui.theme.CoverThemeController
 import top.yunov.neteasy.util.RefreshRate
 
 /**
- * 应用入口：冷启动时拉起 Node 后端前台服务。
+ * 应用入口：冷启动时拉起 Rust 后端前台服务。
  *
  * 网络层（[ApiClient]/[NcmRepository]）和播放器（[PlayerController]）提升为 App 级单例，
  * 不再跟着 Activity 的 remember{} 走——这样切后台、Activity 重建都不会打断播放，
@@ -50,7 +50,7 @@ class NeteasyApp : Application() {
     override fun onCreate() {
         super.onCreate()
         // minSdk 29，startForegroundService 恒可用，不用再判断 Build.VERSION
-        startForegroundService(Intent(this, NodeService::class.java))
+        startForegroundService(Intent(this, BackendService::class.java))
 
         // 高刷新率：所有 Activity（含独立 Activity）创建时统一向系统申请
         // 当前分辨率下的最高显示模式，避免系统省电策略把滚动/动画降回 60Hz

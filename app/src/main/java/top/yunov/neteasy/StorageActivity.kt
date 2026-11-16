@@ -17,6 +17,7 @@ import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yunov.neteasy.bridge.BackendService
 import top.yunov.neteasy.ui.screens.StorageScreen
 import top.yunov.neteasy.ui.theme.NeteasyThemedScreen
 
@@ -24,10 +25,10 @@ import top.yunov.neteasy.ui.theme.NeteasyThemedScreen
  * 存储空间独立 Activity——参考网易云音乐官方「存储空间」页样式重做，
  * 把 App 实际占用的磁盘空间摊开成三块：
  * - 数据缓存 = cacheDir（含 Coil 图片缓存，音乐缓存单独摘出去不算在内）+ filesDir 除
- *   nodejs-project 外的全部（不挑着算，见下方注释）
+ *   neteasy-backend 外的全部（不挑着算，见下方注释）
  * - 音乐缓存 = 播放过的歌曲本地缓存（AudioCacheManager），容量上限/有效期在
  *   「设置 - 播放」里调，这里只管展示占用 + 手动清空
- * - 必要文件 = filesDir/nodejs-project（内嵌后端程序）+ APK 安装包本身，运行必需不可清除
+ * - 必要文件 = filesDir/neteasy-backend（内嵌后端的设备 ID / 公钥 / 游客 token）+ APK 安装包本身，运行必需不可清除
  *
  * 顶部占用条对比的是整机存储（StatFs），不是单纯 App 内部数字，跟系统「设置」里
  * 看到的口径一致。
@@ -54,14 +55,14 @@ class StorageActivity : ComponentActivity() {
                     // 不能被算进「数据缓存」，不然总占用没错但两个数字对不上、清数据缓存那个按钮
                     // 也会把还没过期的歌曲缓存一起清掉
                     val cacheDirBytes = cacheDir.sizeRecursively() - musicCache
-                    val nodeProjectBytes = File(filesDir, "nodejs-project").sizeRecursively()
+                    val backendDataBytes = File(filesDir, BackendService.DATA_DIR_NAME).sizeRecursively()
                     val filesDirTotal = filesDir.sizeRecursively()
-                    // filesDir 除 nodejs-project 之外的都算「数据缓存」——之前这里只挑了 tmp 和
+                    // filesDir 除 neteasy-backend 之外的都算「数据缓存」——之前这里只挑了 tmp 和
                     // lyric_cache 两个「已知」的子目录来算，跟清理按钮那边维护的是两份分开的名单，
                     // 只要有一个漏加（或者以后又多了新的缓存目录）这个数字就会跟实际能清理的对不上，
                     // 显示的和真正删的不是同一个范围，导致清理后总有一部分数字清不掉。现在直接
-                    // 「除 nodejs-project 外全部」，清理那边也改成同样口径的一刀切，两边天然一致
-                    val filesDirClearableBytes = (filesDirTotal - nodeProjectBytes).coerceAtLeast(0L)
+                    // 「除 neteasy-backend 外全部」，清理那边也改成同样口径的一刀切，两边天然一致
+                    val filesDirClearableBytes = (filesDirTotal - backendDataBytes).coerceAtLeast(0L)
                     val apkBytes =
                         try {
                             File(applicationInfo.sourceDir).length()
@@ -71,7 +72,7 @@ class StorageActivity : ComponentActivity() {
 
                     dataCacheBytes = cacheDirBytes + filesDirClearableBytes
                     musicCacheBytes = musicCache
-                    essentialFilesBytes = nodeProjectBytes + apkBytes
+                    essentialFilesBytes = backendDataBytes + apkBytes
                     appTotalBytes = dataCacheBytes + musicCacheBytes + essentialFilesBytes
 
                     val statFs = StatFs(Environment.getDataDirectory().path)
@@ -109,13 +110,13 @@ class StorageActivity : ComponentActivity() {
                                     if (f.name != "audio_cache") f.deleteRecursively()
                                 }
                                 // 跟上面 refresh() 的 filesDirClearableBytes 口径保持一致：filesDir
-                                // 除 nodejs-project 外全部删掉（覆盖 tmp、LyricRepository 的
+                                // 除 neteasy-backend 外全部删掉（覆盖 tmp、LyricRepository 的
                                 // lyric_cache，以及以后任何新加的缓存目录），不用再挨个记名单——
                                 // 之前显示的「数据缓存」数字和这里真正删除的范围是两份分开维护的
                                 // 名单，只要漏加一个就会导致清理后总剩几 KB 清不掉，现在两边由
-                                // 同一个规则（除 nodejs-project 外全删）决定，不可能再对不上
+                                // 同一个规则（除 neteasy-backend 外全删）决定，不可能再对不上
                                 filesDir.listFiles()?.forEach { f ->
-                                    if (f.name != "nodejs-project") f.deleteRecursively()
+                                    if (f.name != BackendService.DATA_DIR_NAME) f.deleteRecursively()
                                 }
                                 app.repository.clearPlaylistCache()
                             }

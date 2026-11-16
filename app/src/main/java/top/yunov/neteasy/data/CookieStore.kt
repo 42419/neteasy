@@ -7,7 +7,7 @@ import okhttp3.HttpUrl
 
 /**
  * 把 cookie 持久化到 SharedPreferences：
- * - Node 后端的 Set-Cookie 会被保存（如登录后的 MUSIC_U）
+ * - 本地后端的 Set-Cookie 会被保存（如登录后的 MUSIC_U）
  * - 重启 App / 重启 Node 后依然携带，登录态不丢
  */
 class CookieStore(context: Context) : CookieJar {

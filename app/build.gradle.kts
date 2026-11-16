@@ -1,147 +1,92 @@
+import java.net.URI
+import java.security.MessageDigest
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
 
 // ============================================================
-// neteasy 内嵌 Node 后端：源码同步 + 依赖安装
-// 注意：doFirst/doLast 等嵌套闭包不能直接引用脚本顶层 val
-//（Kotlin 会捕获整个脚本对象 this$0，配置缓存无法序列化）。
-// 必须在任务配置 lambda 内部先用局部变量承接，闭包只捕获值对象。
+// neteasy 内嵌 Rust 后端（https://github.com/42419/neteasy-backend）
+// 构建时从该仓库的 GitHub Release 下载预编译好的三个 ABI 动态库，逐个校验 SHA-256 后
+// 放进 build/backend-jniLibs/<abi>/libneteasy_backend.so 并打进 APK。
+// 升级后端：同时改 gradle.properties 里的 neteasy.backendVersion 和三个 SHA-256。
+// 本地调试后端：把环境变量 NETEASY_BACKEND_JNILIBS_DIR（或 gradle.properties 的
+// neteasy.backendJniLibsDir）指向 `cargo ndk -o jniLibs build --release` 的产物目录，即可跳过下载。
 // ============================================================
 
-// api-enhanced 仓库路径。
-// 解析优先级：环境变量 NETEASY_NODE_PROJECT_DIR > gradle.properties 的
-// neteasy.nodeProjectDir > 构建报错提示（不硬编码本机路径，便于协作者使用）
-val envNodeProjectDir: String? = System.getenv("NETEASY_NODE_PROJECT_DIR")
-val propNodeProjectDir: String = providers.gradleProperty("neteasy.nodeProjectDir")
-    .orElse("")
-    .get()
-val nodeProjectSourceDir: String =
-    if (!envNodeProjectDir.isNullOrBlank()) envNodeProjectDir else propNodeProjectDir
-val sourceDir = File(nodeProjectSourceDir)
-val nodeAssetsDir = layout.projectDirectory.dir("src/main/assets/nodejs-project")
-val neteasyNodeProjectDir = rootProject.layout.projectDirectory.dir("nodejs-project")
-val nodeDepsMarker = nodeAssetsDir.file(".deps-installed")
-// 补丁脚本（由 neteasy 工程维护，随同步任务拷入 assets）
-val patchScript = nodeAssetsDir.file("patch-path-to-regexp.js")
+val backendAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+
+// 解析优先级：环境变量 > gradle.properties；都没配就走下载
+val backendJniLibsOverride: String? =
+    System.getenv("NETEASY_BACKEND_JNILIBS_DIR")?.takeIf { it.isNotBlank() }
+        ?: providers.gradleProperty("neteasy.backendJniLibsDir").orNull?.takeIf { it.isNotBlank() }
+val backendJniLibsDir = layout.buildDirectory.dir("backend-jniLibs")
 
 /**
- * 把 api-enhanced 源码同步到 assets/nodejs-project（构建产物，已 gitignore）。
- * 排除仓库里的开发/文档/测试文件；plugins/ 必须保留（上传模块引用）。
+ * 下载并校验后端动态库。
+ * 注意：任务类里只用注入的服务和 Property，不引用脚本顶层 val（配置缓存要求，见 Gradle 文档）。
  */
-val syncNodeProject = tasks.register<Sync>("syncNodeProject") {
-    group = "neteasy"
-    description = "从 api-enhanced 同步 Node 后端源码到 assets/nodejs-project"
-    // 局部变量承接脚本引用（配置缓存要求：闭包内不得捕获脚本对象）
-    val srcDir = sourceDir
-    val srcDirPath = nodeProjectSourceDir
-    doFirst {
-        if (!srcDir.exists() || !srcDir.isDirectory) {
-            throw GradleException(
-                "无法定位 api-enhanced 仓库: $srcDirPath\n" +
-                    "请通过以下任一方式配置（用正斜杠避免转义）：\n" +
-                    "  1) 环境变量 NETEASY_NODE_PROJECT_DIR=D:/path/to/api-enhanced\n" +
-                    "  2) neteasy/gradle.properties 中的 neteasy.nodeProjectDir=D:/path/to/api-enhanced",
-            )
+abstract class FetchBackendLibs : DefaultTask() {
+    /** 形如 https://github.com/42419/neteasy-backend/releases/download/v0.1.1 */
+    @get:Input
+    abstract val baseUrl: Property<String>
+
+    /** ABI → 期望的 SHA-256（小写十六进制） */
+    @get:Input
+    abstract val sha256ByAbi: MapProperty<String, String>
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun fetch() {
+        val out = outputDir.get().asFile
+        out.deleteRecursively()
+        sha256ByAbi.get().forEach { (abi, expected) ->
+            val target = File(out, "$abi/libneteasy_backend.so")
+            target.parentFile.mkdirs()
+            val part = File(out, "$abi/libneteasy_backend.so.part")
+            val url = "${baseUrl.get()}/libneteasy_backend-$abi.so"
+            logger.lifecycle("下载 $url")
+            URI(url).toURL().openStream().use { input ->
+                part.outputStream().use { input.copyTo(it) }
+            }
+            val actual =
+                MessageDigest.getInstance("SHA-256")
+                    .digest(part.readBytes())
+                    .joinToString("") { "%02x".format(it) }
+            check(actual.equals(expected, ignoreCase = true)) {
+                "后端动态库校验失败：$abi\n  期望 $expected\n  实际 $actual\n" +
+                    "（升级后端版本后需要同步更新 gradle.properties 里的 neteasy.backendSha256.*）"
+            }
+            check(part.renameTo(target)) { "无法写入 ${target.path}" }
         }
     }
-    from(nodeProjectSourceDir) {
-        exclude(
-            "**/.git/**",
-            "**/.github/**",
-            "**/.codegraph/**",
-            "test/**",
-            "scripts/**",
-            "module_example/**",
-            "docs/**",
-            "public/**",
-            "**/*.d.ts",
-            "tsconfig.json",
-            "eslint.config.js",
-            "**/.eslintrc*",
-            ".prettierrc",
-            ".npmignore",
-            ".editorconfig",
-            ".dockerignore",
-            "Dockerfile",
-            ".travis.yml",
-            "scf_bootstrap",
-            "vercel.json",
-            "AGENTS.md",
-            ".gitignore",
-            "LICENSE",
-            "main.test.js",
-            "server.test.js",
-        )
-    }
-    // 移动端入口 / pnpm 配置 / 兼容补丁由 neteasy 工程维护（neteasy/nodejs-project/）
-    from(neteasyNodeProjectDir) {
-        include("mobile-entry.js", ".npmrc", "patch-path-to-regexp.js")
-    }
-    into(nodeAssetsDir)
 }
 
-/**
- * 安装 production 依赖。必须平铺（.npmrc 里 node-linker=hoisted）：
- * pnpm 默认的 symlink 式 node_modules 在 APK assets 解压后会损坏。
- * --ignore-scripts：跳过 prepare 等生命周期脚本（husky 是 devDependency，
- * --prod 不安装它，prepare 必然失败；本项目无强制原生模块，安全）。
- * 仅当 package.json / pnpm-lock.yaml / .npmrc 变化时重跑。
- */
-val installNodeProjectDeps = tasks.register<Exec>("installNodeProjectDeps") {
+val fetchBackendLibs = tasks.register<FetchBackendLibs>("fetchBackendLibs") {
     group = "neteasy"
-    description = "安装 nodejs-project 的 production 依赖（平铺 node_modules）"
-    dependsOn(syncNodeProject)
-    workingDir(nodeAssetsDir)
-    inputs.file(nodeAssetsDir.file("package.json"))
-    inputs.file(nodeAssetsDir.file("pnpm-lock.yaml"))
-    inputs.file(nodeAssetsDir.file(".npmrc"))
-    outputs.file(nodeDepsMarker)
-    // 局部变量承接脚本引用 + 标准方式判断 Windows（避免 Gradle internal API）
-    val markerFile = nodeDepsMarker
-    val pnpmCmd = if (System.getProperty("os.name").lowercase().contains("win")) {
-        listOf("cmd", "/c", "pnpm", "install", "--prod", "--ignore-scripts")
-    } else {
-        listOf("pnpm", "install", "--prod", "--ignore-scripts")
-    }
-    commandLine(pnpmCmd)
-    doLast {
-        markerFile.asFile.writeText("installed ${System.currentTimeMillis()}")
-    }
+    description = "从 neteasy-backend 的 GitHub Release 下载并校验三个 ABI 的 libneteasy_backend.so"
+    val version = providers.gradleProperty("neteasy.backendVersion")
+    baseUrl.set(version.map { "https://github.com/42419/neteasy-backend/releases/download/$it" })
+    sha256ByAbi.set(
+        provider {
+            backendAbis.associateWith { abi ->
+                providers.gradleProperty("neteasy.backendSha256.$abi").orNull
+                    ?: error("缺少 gradle.properties 配置：neteasy.backendSha256.$abi")
+            }
+        }
+    )
+    outputDir.set(backendJniLibsDir)
 }
 
-/**
- * 兼容补丁：path-to-regexp@8 用了 \p{ID_Start} 等 Unicode 属性正则，
- * nodejs-mobile 的 V8 不支持（SyntaxError），必须替换为 ASCII 等价写法。
- * 在依赖安装后执行；脚本幂等，重复运行安全。
- */
-val patchNodeProjectDeps = tasks.register<Exec>("patchNodeProjectDeps") {
-    group = "neteasy"
-    description = "给 node_modules 打 nodejs-mobile 兼容补丁（path-to-regexp）"
-    dependsOn(installNodeProjectDeps)
-    workingDir(nodeAssetsDir)
-    inputs.file(nodeDepsMarker) // 安装后 marker 更新 → 触发补丁
-    inputs.file(patchScript)
-    outputs.file(nodeAssetsDir.file(".patched"))
-    val markerFile = nodeDepsMarker
-    val patchMarker = nodeAssetsDir.file(".patched")
-    val patchCmd = if (System.getProperty("os.name").lowercase().contains("win")) {
-        listOf("cmd", "/c", "node", "patch-path-to-regexp.js")
-    } else {
-        listOf("node", "patch-path-to-regexp.js")
-    }
-    commandLine(patchCmd)
-    doLast {
-        patchMarker.asFile.writeText("patched ${System.currentTimeMillis()}")
-    }
-}
-
-// 构建前先同步、安装依赖并打补丁（覆盖 preDebugBuild / preReleaseBuild 等）
-// 用字符串引用任务名，避免 configureEach 闭包捕获脚本对象（配置缓存要求）
-tasks.configureEach {
-    if (name.startsWith("pre") && name.endsWith("Build")) {
-        dependsOn("patchNodeProjectDeps")
+// 没有本地覆盖目录时，任何构建开始前先把后端库准备好
+if (backendJniLibsOverride == null) {
+    tasks.configureEach {
+        if (name.startsWith("pre") && name.endsWith("Build")) {
+            dependsOn(fetchBackendLibs)
+        }
     }
 }
 
@@ -235,32 +180,20 @@ android {
         compose = true
     }
 
-    // ===== nodejs-mobile（内嵌 Node.js 后端）=====
-
-    // NDK 版本（本地 SDK 已安装 28.2.13676358）
-    ndkVersion = "28.2.13676358"
-
-    // JNI 桥 native-lib.cpp 的 CMake 配置
-    externalNativeBuild {
-        cmake {
-            path = file("CMakeLists.txt")
-            version = "3.22.1"
-        }
-    }
-
-    // 打包预编译的 libnode.so 与 libc++_shared.so（libnode/bin/<ABI>/）
-    // 注意：libnode.so 依赖 libc++_shared.so，必须一起打包，否则运行时 dlopen 失败
+    // ===== 内嵌 Rust 后端 =====
+    // 打包预编译的 libneteasy_backend.so（<ABI>/libneteasy_backend.so），来源见文件顶部说明
     sourceSets {
         getByName("main") {
-            jniLibs.directories += "libnode/bin"
+            jniLibs.directories += (backendJniLibsOverride ?: backendJniLibsDir.get().asFile.path)
         }
     }
 
     // 按 ABI 拆分 APK（arm64-v8a / armeabi-v7a / x86_64 各打一个）
     // 同时约束原生库只构建这三个 ABI
+    // 仪器测试（connectedAndroidTest）在模拟器上跑时用 -Pneteasy.noAbiSplits 关掉拆分，只出一个 APK
     splits {
         abi {
-            isEnable = true
+            isEnable = !providers.gradleProperty("neteasy.noAbiSplits").isPresent
             reset()
             include("arm64-v8a", "armeabi-v7a", "x86_64")
             isUniversalApk = false
