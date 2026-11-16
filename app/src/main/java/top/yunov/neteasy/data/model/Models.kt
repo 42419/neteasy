@@ -410,9 +410,6 @@ object JsonParser {
         )
     }
 
-    /** /comment/add 发评论成功时返回的新评论（comment 字段）；失败/结构不符返回 null，调用方走刷新兜底 */
-    fun parseAddedComment(root: JSONObject): Comment? = parseComment(root.optJSONObject("comment"))
-
     private fun parseComment(o: JSONObject?): Comment? {
         if (o == null) return null
         val id = o.optLong("commentId")

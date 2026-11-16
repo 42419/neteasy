@@ -13,30 +13,23 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -54,7 +47,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
@@ -77,8 +69,7 @@ import top.yunov.neteasy.ui.components.rememberPageBackdrop
  * - 列表：/comment/new 分页加载（推荐排序按 pageNo 偏移，最新排序用 cursor 游标），
  *   滚动到底自动加载下一页
  * - 点赞：/comment/like，本地乐观更新（先变色计数，失败回滚）
- * - 发评论：底部输入栏，/comment/add（需登录）；成功就地把新评论插到列表头，
- *   服务端没返回新评论对象时刷新第一页兜底
+ * 只读：不提供发评论（后端不实现 /comment/add），只做获取、分页、排序和点赞。
  * 楼中楼回复（/comment/floor）暂不接——回复数只做展示，点不开二级页，
  * 后续要做的话从这个页面加「N 条回复」的跳转即可。
  */
@@ -106,8 +97,6 @@ fun CommentsScreen(
     var loading by remember { mutableStateOf(true) }
     var loadingMore by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var input by remember { mutableStateOf("") }
-    var sending by remember { mutableStateOf(false) }
     val loggedIn = remember { cookieStore.hasLogin() }
 
     fun load(firstPage: Boolean) {
@@ -163,6 +152,8 @@ fun CommentsScreen(
     val backdrop = rememberPageBackdrop()
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val scrolledPast by listState.isScrolledPast(statusBarHeight + 24.dp)
+    // 原来底部输入栏会吃掉手势导航栏的 inset；去掉后由列表自己留出这块空间
+    val navBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -197,7 +188,7 @@ fun CommentsScreen(
                             PaddingValues(
                                 start = 16.dp,
                                 end = 16.dp,
-                                bottom = 16.dp
+                                bottom = 16.dp + navBarHeight
                             ),
                             verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)
                         ) {
@@ -286,78 +277,6 @@ fun CommentsScreen(
                         }
                 }
                 GlassTopBackBar(backdrop = backdrop, scrolledPast = scrolledPast, onBack = onBack)
-            }
-
-            // 底部发评栏：吃手势导航栏 + 键盘 inset；未登录禁用并提示
-            Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
-                Row(
-                    modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .windowInsetsPadding(WindowInsets.navigationBars)
-                        .imePadding()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = input,
-                        onValueChange = { input = it },
-                        modifier = Modifier.weight(1f),
-                        enabled = loggedIn && !sending,
-                        placeholder = {
-                            Text(if (loggedIn) "说点什么…" else "登录后发表评论")
-                        },
-                        singleLine = true,
-                        shape = CircleShape,
-                        colors =
-                        OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            focusedBorderColor = Color.Transparent,
-                            unfocusedBorderColor = Color.Transparent,
-                            disabledBorderColor = Color.Transparent
-                        )
-                    )
-                    IconButton(
-                        onClick = {
-                            val content = input.trim()
-                            if (content.isEmpty() || sending) return@IconButton
-                            sending = true
-                            scope.launch {
-                                try {
-                                    val added =
-                                        withContext(Dispatchers.IO) {
-                                            repository.addComment(resourceId, resourceType, content)
-                                        }
-                                    input = ""
-                                    if (added != null) {
-                                        comments = listOf(added) + comments
-                                        totalCount++
-                                    } else {
-                                        // 服务端没回新评论对象，刷新第一页保证能看到自己的评论
-                                        load(firstPage = true)
-                                    }
-                                } catch (e: Exception) {
-                                    Toast.makeText(context, e.message ?: "评论失败", Toast.LENGTH_SHORT).show()
-                                }
-                                sending = false
-                            }
-                        },
-                        enabled = loggedIn && input.isNotBlank() && !sending
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "发送",
-                            tint =
-                            if (loggedIn && input.isNotBlank()) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            }
-                        )
-                    }
-                }
             }
         }
     }

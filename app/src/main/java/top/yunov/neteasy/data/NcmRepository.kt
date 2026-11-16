@@ -106,22 +106,6 @@ class NcmRepository(private val api: ApiClient) {
             )
         ).optInt("code") == 200
 
-    /**
-     * 发评论（/comment/add，需要登录态）。成功返回解析出的新评论（调用方插到列表头），
-     * 服务端返回结构不含新评论时返回 null（调用方刷新首页兜底）；失败抛异常。
-     */
-    suspend fun addComment(id: Long, type: Int, content: String): Comment? {
-        val root =
-            api.get(
-                "/comment/add",
-                mapOf("id" to "$id", "type" to "$type", "content" to content)
-            )
-        if (root.optInt("code") != 200) {
-            throw IllegalStateException(root.optString("message").ifBlank { "评论失败" })
-        }
-        return JsonParser.parseAddedComment(root)
-    }
-
     /** 不发请求，只读内存缓存；没有缓存返回 null。打开歌单页时先用它秒出上次的内容。 */
     fun cachedPlaylistOrNull(id: Long): Pair<Playlist, List<Song>>? = playlistCache[id]
 
