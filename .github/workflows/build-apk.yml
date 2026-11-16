@@ -40,16 +40,7 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Set up Node.js + pnpm
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      # platform 37（compileSdk 37）+ NDK 28.2.13676358 + CMake 3.22.1（JNI 桥）
+      # platform 37（compileSdk 37）；后端是预编译的 Rust 动态库，不再需要 NDK / CMake
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -58,8 +49,6 @@ jobs:
             platforms;android-37.0
             build-tools;36.0.0
             build-tools;37.0.0
-            ndk;28.2.13676358
-            cmake;3.22.1
 
       - name: Cache Gradle
         uses: actions/cache@v4
@@ -70,50 +59,6 @@ jobs:
           key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties', 'gradle.properties') }}
           restore-keys: |
             gradle-${{ runner.os }}-
-
-      # nodejs-mobile 预编译产物不入库（.gitignore），CI 现下现用。
-      # zip 结构：bin/<ABI>/libnode.so + include/node/（无 libc++_shared.so）
-      - name: Download nodejs-mobile prebuilt libnode
-        run: |
-          curl -sL -o /tmp/nodejs-mobile.zip \
-            "https://github.com/nodejs-mobile/nodejs-mobile/releases/download/v18.20.4/nodejs-mobile-v18.20.4-android.zip"
-          unzip -q /tmp/nodejs-mobile.zip -d /tmp/nodejs-mobile
-          mkdir -p app/libnode
-          cp -r /tmp/nodejs-mobile/bin app/libnode/bin
-          cp -r /tmp/nodejs-mobile/include app/libnode/include
-
-      # libnode.so 依赖 libc++_shared.so，zip 里没有，必须从 NDK 拷贝，
-      # 否则 APK 运行时 dlopen(libnode.so) 失败。
-      # NDK 28 的 sysroot 目录用 target triple 命名（aarch64-linux-android 等），
-      # 旧版 NDK 用 ABI 名（arm64-v8a 等），这里两种都匹配。
-      - name: Copy libc++_shared.so from NDK
-        run: |
-          NDK="${ANDROID_SDK_ROOT}/ndk/28.2.13676358"
-          if [ ! -d "$NDK" ]; then
-            echo "::error::NDK not found at $NDK (ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT)"
-            exit 1
-          fi
-          copy_libcxx() {
-            local ABI="$1" TRIPLE="$2"
-            local LIB
-            LIB="$(find "$NDK" -name 'libc++_shared.so' \( -path "*/${ABI}/*" -o -path "*/${TRIPLE}/*" \) | head -n 1)"
-            if [ -z "$LIB" ]; then
-              echo "::error::libc++_shared.so not found for ${ABI} in NDK"
-              exit 1
-            fi
-            cp "$LIB" "app/libnode/bin/${ABI}/libc++_shared.so"
-            echo "copied ${LIB} -> app/libnode/bin/${ABI}/"
-          }
-          copy_libcxx arm64-v8a aarch64-linux-android
-          copy_libcxx armeabi-v7a arm-linux-androideabi
-          copy_libcxx x86_64 x86_64-linux-android
-
-      # 后端源码：SyncNodeProject 任务从该仓库同步进 assets，并 pnpm 装依赖
-      - name: Clone api-enhanced backend
-        run: |
-          git clone --depth 1 \
-            https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced.git \
-            "${{ runner.temp }}/api-enhanced"
 
       # 固定发布签名：从 GitHub Secrets 解出 keystore，仅 release 构建需要。
       # 没配 secrets（比如 fork 出去的仓库）时这步会静默跳过，release 会退回 debug 签名
@@ -130,10 +75,9 @@ jobs:
             echo "::warning::未配置 KEYSTORE_BASE64 secret，release 构建将退回 debug 签名（每次签名不同，不能当正式发布包）"
           fi
 
+      # 后端动态库由 Gradle 的 fetchBackendLibs 任务从 neteasy-backend 的 Release 下载并校验 SHA-256
       - name: Build APK
         env:
-          # 环境变量优先于 gradle.properties 里的 neteasy.nodeProjectDir
-          NETEASY_NODE_PROJECT_DIR: ${{ runner.temp }}/api-enhanced
           NETEASY_KEYSTORE_PATH: ${{ env.keystore_path }}
           NETEASY_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           NETEASY_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
