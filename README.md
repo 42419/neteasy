@@ -2,7 +2,7 @@
 
 # 🎵 neteasy
 
-**Android 原生网易云音乐客户端** — Kotlin + Jetpack Compose 构建，内嵌 Node.js 后端，**无需任何外部服务器**。
+**Android 原生网易云音乐客户端** — Kotlin + Jetpack Compose 构建，内嵌 Rust 后端，**无需任何外部服务器**。
 
 </div>
 
@@ -14,8 +14,8 @@
 ![Material 3 Expressive](https://img.shields.io/badge/Material3%20Expressive-1.5.0--alpha25-6750A4?logo=materialdesign&logoColor=white&style=flat)
 ![API Level](https://img.shields.io/badge/API-29%2B-00897B?style=flat)
 
-![Node.js](https://img.shields.io/badge/Node.js-18.20.4%20via%20nodejs--mobile-339933?logo=nodedotjs&logoColor=white&style=flat)
-[![Backend - api-enhanced](<https://img.shields.io/badge/Backend-api--enhanced%20(436%20API)-4F5D95?logo=github&logoColor=white&style=flat>)](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced)
+![Rust](https://img.shields.io/badge/Backend-Rust%20(neteasy--backend)-DEA584?logo=rust&logoColor=white&style=flat)
+[![Backend - neteasy-backend](<https://img.shields.io/badge/Backend-neteasy--backend-4F5D95?logo=github&logoColor=white&style=flat>)](https://github.com/42419/neteasy-backend)
 
 </div>
 
@@ -23,9 +23,10 @@
 
 ## ✨ 项目亮点
 
-App 启动时通过 [nodejs-mobile](https://github.com/nodejs-mobile/nodejs-mobile) 在设备本地拉起
-[**api-enhanced**](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced)（网易云音乐 Node.js API 后端，436 个接口），
-前端只访问 `http://127.0.0.1:19800`。**不需要部署任何服务器，登录 cookie 不出设备**。
+App 启动时通过 JNI 在设备本地拉起 [**neteasy-backend**](https://github.com/42419/neteasy-backend)
+（[api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) 中本应用实际用到的接口的 Rust 移植版，
+单个动态库约 1.8~3.5 MB），前端只访问 `http://127.0.0.1:19800`。
+**不需要部署任何服务器，登录 cookie 不出设备**；冷启动在毫秒级完成，不再有 Node 运行时的几秒启动开销。
 
 ## 🧩 功能特性
 
@@ -51,17 +52,16 @@ App 启动时通过 [nodejs-mobile](https://github.com/nodejs-mobile/nodejs-mobi
 └──────────────────────┬──────────────────────┘
                        │  HTTP 127.0.0.1:19800（OkHttp）
 ┌──────────────────────▼──────────────────────┐
-│  NodeService（前台服务 · dataSync）          │
-│  └─ nodejs-mobile（JNI 桥 native-lib.cpp）   │
-│     └─ nodejs-project/（assets → filesDir）  │
-│        ├─ mobile-entry.js      ← 移动端入口   │
-│        ├─ server.js / generateConfig.js      │
-│        ├─ module/（436 接口） util/ data/     │
-│        └─ node_modules/（pnpm 平铺，prod）    │
+│  BackendService（前台服务 · dataSync）       │
+│  └─ RustBackend.start()（JNI）               │
+│     └─ libneteasy_backend.so（Rust）         │
+│        ├─ axum HTTP 服务（127.0.0.1:19800）  │
+│        ├─ module/（按路由一文件）            │
+│        └─ util/（weapi / eapi / xeapi 加密）  │
 └─────────────────────────────────────────────┘
 ```
 
-**数据流**：UI 请求 → OkHttp → 本地 Node 后端 → 网易云服务器；图片（Coil）与歌曲流（MediaPlayer）直连网易云 CDN。
+**数据流**：UI 请求 → OkHttp → 本地 Rust 后端 → 网易云服务器；图片（Coil）与歌曲流（MediaPlayer）直连网易云 CDN。
 
 ## 📚 技术栈
 
@@ -71,84 +71,69 @@ App 启动时通过 [nodejs-mobile](https://github.com/nodejs-mobile/nodejs-mobi
 | 设计系统  | [Material3 **1.5.0-alpha25**](https://m3.material.io/)（官方 Expressive 组件）                                                                                        |
 | 网络      | [OkHttp 4.12.0](https://square.github.io/okhttp/) + [Coil 2.7.0](https://coil-kt.github.io/coil/)                                                                     |
 | 播放      | MediaPlayer + MediaSessionCompat + 音频焦点（androidx.media 1.7.0）                                                                                                   |
-| 内嵌后端  | [nodejs-mobile](https://github.com/nodejs-mobile/nodejs-mobile) v18.20.4（Node.js 18） + [api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) |
-| 构建      | AGP 9.2.1 / Gradle 9.4.1（Kotlin DSL） / CMake 3.22.1 / NDK 28.2.13676358                                                                                             |
+| 内嵌后端  | [neteasy-backend](https://github.com/42419/neteasy-backend)（Rust，api-enhanced 的移植版，经 JNI 加载）                                                          |
+| 构建      | AGP 9.2.1 / Gradle 9.4.1（Kotlin DSL）                                                                                             |
 
 ## 🚀 快速开始
 
 ### 环境要求
 
-| 依赖               | 版本                   | 说明                        |
-| ------------------ | ---------------------- | --------------------------- |
-| Android SDK        | compileSdk 37          | 需要 platform 37 与构建工具 |
-| JDK                | 21                     | Gradle toolchain            |
-| NDK / CMake        | 28.2.13676358 / 3.22.1 | 编译 JNI 桥                 |
-| pnpm               | ≥ 8                    | 安装 Node 依赖              |
-| nodejs-mobile 产物 | v18.20.4               | 预编译 `libnode.so`，见下文 |
-| api-enhanced 仓库  | 最新                   | 后端源码，构建时同步        |
+| 依赖        | 版本          | 说明                                                            |
+| ----------- | ------------- | --------------------------------------------------------------- |
+| Android SDK | compileSdk 37 | 需要 platform 37 与构建工具                                     |
+| JDK         | 21            | Gradle toolchain                                                |
+| 网络        | —             | 构建时从 neteasy-backend 的 GitHub Release 下载预编译后端动态库 |
 
-### 1. 准备 nodejs-mobile
+不再需要 NDK / CMake / Node.js / pnpm / nodejs-mobile / api-enhanced 源码。
 
-从 [nodejs-mobile releases](https://github.com/nodejs-mobile/nodejs-mobile/releases) 下载
-`nodejs-mobile-v18.20.4-android.zip`，解压后将其 `bin/` 目录放到 `app/libnode/bin/`
-（`libnode.so` 与 `libc++_shared.so` 需一起打包，否则运行时 `dlopen` 失败）。
-
-### 2. 配置 api-enhanced 路径
-
-构建时从本地 [api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) 仓库同步后端源码，二选一（路径用正斜杠）：
-
-```bash
-# 方式一：环境变量（推荐）
-export NETEASY_NODE_PROJECT_DIR=D:/path/to/api-enhanced
-```
-
-```properties
-# 方式二：gradle.properties
-neteasy.nodeProjectDir=D:/path/to/api-enhanced
-```
-
-### 3. 构建
+### 1. 构建
 
 ```bash
 ./gradlew :app:assembleDebug
 ```
 
-构建会自动执行三个 Gradle 任务，把后端源码 + 依赖完整打进 APK：
-
-| 任务                     | 作用                                                                                                                                       |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `syncNodeProject`        | 从 api-enhanced 同步源码到 `assets/nodejs-project`（裁剪测试 / 文档 / 配置文件），并入本项目维护的 `mobile-entry.js` / `.npmrc` / 补丁脚本 |
-| `installNodeProjectDeps` | `pnpm install --prod --ignore-scripts`（必须平铺：symlink 式 node_modules 在 APK 解压后会损坏）                                            |
-| `patchNodeProjectDeps`   | 给 path-to-regexp 打 nodejs-mobile 兼容补丁（其 V8 不支持 `\p{ID_Start}` Unicode 正则，不补直接 SyntaxError）                              |
+构建会先执行 `fetchBackendLibs` 任务：从
+[neteasy-backend 的 Release](https://github.com/42419/neteasy-backend/releases) 下载
+`libneteasy_backend-<abi>.so`（三个 ABI），**逐个校验 SHA-256** 后放进
+`app/build/backend-jniLibs/<abi>/libneteasy_backend.so` 并打进 APK。版本号和哈希写在 `gradle.properties`
+（`neteasy.backendVersion` / `neteasy.backendSha256.*`），升级后端时一起改。
 
 **产物**：按 ABI 拆分三个 APK（`arm64-v8a` / `armeabi-v7a` / `x86_64`），位于 `app/build/outputs/apk/debug/`。
 
-### 4. 运行
+### 2. 本地调试后端（可选）
+
+想用本机编译的后端代替下载的版本：在 neteasy-backend 仓库里执行
+
+```bash
+cargo ndk -t arm64-v8a -t armeabi-v7a -t x86_64 -o jniLibs build --release --lib
+```
+
+然后把环境变量 `NETEASY_BACKEND_JNILIBS_DIR`（或 `gradle.properties` 里的 `neteasy.backendJniLibsDir`）
+指向该 `jniLibs` 目录，构建时就会跳过下载。
+
+### 3. 运行
 
 用 Android Studio 直接 Run，或 `adb install` 安装对应 ABI 的 APK。
 
-首次启动会拉起本地 Node 后端（约 2~5 秒），`logcat` 出现 `Server started successfully` 即可正常使用。
+后端在毫秒级就绪，`logcat` 里能看到 `BackendService: RustBackend.start -> true（耗时 …ms）`，
+以及 tag 为 `neteasy-backend` 的后端日志。
 
-### 5. 使用 GitHub Actions 打包（可选）
+### 4. 使用 GitHub Actions
 
-仓库已内置 CI（`.github/workflows/build-apk.yml`），无需本地环境即可出包：
-
-- **手动触发**：Actions 页面 → *Build APK* → Run workflow，可选 `debug` / `release`
-- **打 tag 触发**：推送 `v*` tag（如 `v1.0.0`）自动构建 `release` 并发布 GitHub Release（APK 挂到 Release 资产）
-
-CI 会自动完成：安装 platform 37 / NDK / CMake → 下载 nodejs-mobile 预编译 `libnode.so` → 从 NDK 补齐 `libc++_shared.so` → clone api-enhanced 后端 → 构建 → 上传 APK 产物。
+- **`ci.yml`**（每次推送 / PR 自动跑）：编译 + 单元测试；并在 API 34 / x86_64 模拟器上跑
+  `RustBackendInstrumentedTest`——真正经 JNI 加载后端、用 HTTP 访问本地接口、校验冷启动耗时
+- **`build-apk.yml`**（手动 / 打 tag）：出 `debug` / `release` APK；推送 `v*` tag（如 `v1.0.0`）自动构建 `release`
+  并发布 GitHub Release（APK 挂到 Release 资产）
 
 ## 📁 项目结构
 
 ```
 app/src/main/
-├── AndroidManifest.xml          # 权限、Activity、NodeService / PlaybackService 声明
-├── assets/                      # nodejs-project/ 由 Gradle 同步任务生成（gitignore）
-├── cpp/native-lib.cpp           # JNI 桥：node::Start + stdout/stderr 重定向 logcat
+├── AndroidManifest.xml          # 权限、Activity、BackendService / PlaybackService 声明
 ├── java/top/yunov/neteasy/
-│   ├── NeteasyApp.kt            # Application：拉起 NodeService；App 级单例持有处
-│   ├── NodeService.kt           # 前台服务：assets 复制到 filesDir + 启动 Node 线程
-│   ├── NodeJS.kt                # nodejs-mobile 入口（加载 libnode + native-lib）
+│   ├── NeteasyApp.kt            # Application：拉起 BackendService；App 级单例持有处
+│   ├── RustBackend.kt           # Rust 后端 JNI 入口（类名/包名不能改，符号名里编码了它）
+│   ├── bridge/BackendService.kt # 前台服务：调用 RustBackend.start，清理旧版 Node 残留
 │   ├── MainActivity.kt          # 主界面：首页/我的 Tab + Minibar + 展开播放页 + 队列面板
 │   ├── LoginActivity.kt         # 登录页独立 Activity（系统原生转场）
 │   ├── SearchActivity.kt        # 搜索页独立 Activity
@@ -157,25 +142,22 @@ app/src/main/
 │   ├── data/                    # ApiClient / CookieStore / NcmRepository / Models / SettingsStore
 │   ├── player/                  # PlayerController / PlaybackService / PlayerActions
 │   └── ui/                      # 各屏幕 + theme（Expressive 主题 / 形状 / 动效 token）
-├── libnode/                     # nodejs-mobile 预编译产物 bin/<ABI>/libnode.so（不入库）
 ├── keepRules/rules.keep         # R8 keep 规则
 └── res/xml/network_security_config.xml  # 放行 127.0.0.1 明文 HTTP + 网易云 CDN
 
-nodejs-project/                  # 本项目维护的移动端补丁与入口
-├── mobile-entry.js              # TMPDIR 重定向 + xeapi 预热 + 起 HTTP 服务
-├── .npmrc                       # node-linker=hoisted（pnpm 平铺）
-└── patch-path-to-regexp.js      # nodejs-mobile 兼容补丁脚本
+app/src/androidTest/              # RustBackendInstrumentedTest：模拟器上的后端端到端测试
+.github/workflows/               # ci.yml（编译 + 测试）/ build-apk.yml（出包）
 ```
 
 ## ⚙️ 工作原理
 
-1. **启动** — `NeteasyApp.onCreate` 拉起 `NodeService`（前台服务，`dataSync` 类型）
-2. **部署** — 仅当 APK 更新（`lastUpdateTime` 变化）时把 `assets/nodejs-project` 复制到 `filesDir`，避免每次启动变慢
-3. **运行** — JNI 桥在独立线程调用 `node::Start`，执行 `mobile-entry.js`：
-    - 将 `os.tmpdir()` monkey-patch 到应用私有目录（Android 沙箱 `/tmp` 不可写，`anonymous_token` / xeapi 公钥 / 上传临时文件全靠它）
-    - 预热 xeapi 公钥（上游 generateConfig 首次自举会失败）
-    - `serveNcmApi({ checkVersion: false, port: 19800, host: '127.0.0.1' })` —— `checkVersion: false` 绕开 `child_process.exec`（nodejs-mobile 不支持子进程）；只绑本机，不暴露局域网
-4. **容错** — Node 未就绪时请求会遇 `ConnectException`，`ApiClient` 仅对**连接建立失败**这一种错误轮询重试（最多 30 次 × 400ms），其余错误直接抛出——避免冷启动时误判「未登录」而丢失请求携带的 cookie
+1. **启动** — `NeteasyApp.onCreate` 拉起 `BackendService`（前台服务，`dataSync` 类型）
+2. **加载** — 服务里调用 `RustBackend.start(filesDir/neteasy-backend, 19800)`（JNI）；该调用在端口绑定成功后才返回，
+   绑定失败（如端口被占用）返回 `false`。不再复制 assets，也没有 Node 线程和模块加载开销
+3. **引导** — 后端先绑定 `127.0.0.1:19800`（只绑本机，不暴露局域网），再在后台获取 xeapi 公钥和游客 token；
+   设备 ID / 公钥 / token 缓存在 `filesDir/neteasy-backend`，热启动不用再联网初始化，首次冷启动期间的请求会等待引导完成（最多 20 秒）
+4. **容错** — `ApiClient` 仍对**连接建立失败**这一种错误做短暂轮询重试（最多 30 次 × 400ms）作为兜底，其余错误直接抛出
+5. **升级清理** — 从旧版（内嵌 Node）升级后，首次启动会自动删除遗留的 `filesDir/nodejs-project`
 
 ## 💡 关键设计
 
@@ -189,17 +171,16 @@ nodejs-project/                  # 本项目维护的移动端补丁与入口
 
 ## ⚠️ 已知限制
 
-- 内嵌 Node 为 18.20.4（nodejs-mobile 最新版），Node 18 已 EOL，功能不受影响
+- 评论区只读：可以浏览、翻页、排序、点赞，不提供发评论（后端不实现 `/comment/add`）
 - 无损 / Hi-Res 通常需黑胶 VIP 权限，权限不足时服务端自动降级；无版权 / VIP 歌曲 URL 为空，无法播放
 - release 构建暂用 debug 签名且未开 R8 优化，keep 规则见 `app/src/main/keepRules/rules.keep`
-- `NodeService` 前台服务类型为 `dataSync`，Android 15+ 有 6 小时上限；播放服务（`mediaPlayback`）不受此限制
+- `BackendService` 前台服务类型为 `dataSync`，Android 15+ 有 6 小时上限；播放服务（`mediaPlayback`）不受此限制
 
 ## 🤝 贡献
 
-欢迎提交 Issue 与 PR。涉及 Node 后端行为的改动，请同步验证 [api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) 上游行为。
+欢迎提交 Issue 与 PR。涉及后端行为的改动，请到 [neteasy-backend](https://github.com/42419/neteasy-backend) 仓库处理，并对照 [api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) 上游行为验证。
 
 ## 🙏 致谢
 
-- [NeteaseCloudMusicApiEnhanced/api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) — 内嵌的网易云音乐 API 后端
-- [nodejs-mobile](https://github.com/nodejs-mobile/nodejs-mobile) — Android 上的 Node.js 运行时
+- [NeteaseCloudMusicApiEnhanced/api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) — 网易云音乐 API 后端；本项目的 Rust 后端（[neteasy-backend](https://github.com/42419/neteasy-backend)）移植自它
 - Material Design 3 Expressive 设计体系

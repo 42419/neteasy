@@ -25,3 +25,10 @@
   `LazyListState` 版本的滚动门控换成了普通 `ScrollState` 也能用的版本），不是逐行照搬。
   按压回弹缩放（1→1.2倍）+ 高光叠加这套动效参数最早也是照这个项目 `glasense-ui` 模块
   `Button.kt` 里的 `ButtonPressEffect.Scale` 抄的。
+
+## NeteaseCloudMusicApiEnhanced（api-enhanced）
+
+- 项目地址：https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced
+- 许可证：MIT License
+- 引用方式：内嵌后端 [neteasy-backend](https://github.com/42419/neteasy-backend)（Rust）中的加密算法、请求流程和接口定义移植自该项目，
+  对应关系见 neteasy-backend 的 README 与 `NOTICE`。本仓库不再包含也不再打包 api-enhanced 的 Node.js 源码。
