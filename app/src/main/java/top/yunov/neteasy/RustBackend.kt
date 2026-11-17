@@ -19,4 +19,15 @@ object RustBackend {
      */
     @JvmStatic
     external fun start(dataDir: String, port: Int): Boolean
+
+    /**
+     * 停止后端并等待它的线程退出；之后可以再次 [start]（同一个端口可以立刻重新监听）。
+     * 确实停掉了一个正在运行的后端返回 `true`，本来就没在运行返回 `false`。
+     */
+    @JvmStatic
+    external fun stop(): Boolean
+
+    /** 后端当前是否在运行 */
+    @JvmStatic
+    external fun isRunning(): Boolean
 }

@@ -8,6 +8,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -90,6 +91,28 @@ class RustBackendInstrumentedTest {
         // 已经在运行：第二次调用应当返回 false，且服务不受影响
         assertEquals(false, RustBackend.start(dataDir.absolutePath, 19800))
         assertEquals(200, get("/").first)
+    }
+
+    @Test
+    fun stopThenStartAgainOnTheSamePort() {
+        val ctx = InstrumentationRegistry.getInstrumentation().targetContext
+        val dataDir = File(ctx.filesDir, "neteasy-backend").apply { mkdirs() }
+        RustBackend.start(dataDir.absolutePath, 19800)
+        awaitReady()
+        assertTrue(RustBackend.isRunning())
+
+        // 停止：线程退出后端口不再可连接
+        assertTrue(RustBackend.stop())
+        assertFalse(RustBackend.isRunning())
+        assertTrue("停止后端口仍可连接", runCatching { get("/") }.isFailure)
+        // 没在运行时再 stop 返回 false，不会出问题
+        assertFalse(RustBackend.stop())
+
+        // 同一个端口可以立刻重新启动
+        assertTrue(RustBackend.start(dataDir.absolutePath, 19800))
+        awaitReady()
+        assertEquals(200, get("/").first)
+        assertTrue(RustBackend.isRunning())
     }
 
     private companion object {

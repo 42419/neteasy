@@ -48,11 +48,20 @@ class BackendService : Service() {
             try {
                 cleanupLegacyNode()
                 val dataDir = File(filesDir, DATA_DIR_NAME).apply { mkdirs() }
+                if (RustBackend.isRunning()) {
+                    // 服务被系统重建/重复拉起时，后端线程其实一直在跑，不需要再启动
+                    Log.i(TAG, "后端已在运行，跳过启动")
+                    return@Thread
+                }
                 val startedAt = System.nanoTime()
                 val started = RustBackend.start(dataDir.absolutePath, PORT)
                 val cost = (System.nanoTime() - startedAt) / 1_000_000
-                // false 多半是服务被重复拉起（后端已经在跑），不是错误
-                Log.i(TAG, "RustBackend.start -> $started（耗时 ${cost}ms）")
+                if (started) {
+                    Log.i(TAG, "后端已启动（端口已绑定，耗时 ${cost}ms）")
+                } else {
+                    // 多半是端口被别的进程占用；ApiClient 会连接失败并把错误展示出来
+                    Log.e(TAG, "后端启动失败（端口 $PORT 可能被占用）")
+                }
             } catch (t: Throwable) {
                 Log.e(TAG, "启动 Rust 后端失败", t)
             }
