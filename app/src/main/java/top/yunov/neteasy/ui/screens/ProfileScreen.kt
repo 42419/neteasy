@@ -311,7 +311,7 @@ fun ProfileScreen(
 
             item {
                 Text(
-                    "数据来自本地 Node 服务（127.0.0.1:19800）\n登录状态保存在本机，不会上传",
+                    "数据来自本地后端服务（127.0.0.1:19800）\n登录状态保存在本机，不会上传",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,

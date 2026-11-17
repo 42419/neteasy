@@ -92,7 +92,7 @@ import top.yunov.neteasy.ui.theme.ExpressiveMotion
  * 封面取色开启时快捷卡片会跟着一起变色，符合「跟随封面动态取色为主」的方向。
  *
  * 数据来自本地后端 /banner /personalized /toplist /recommend/songs。
- * 冷启动时 Node 可能未就绪：失败后自动重试 5 次（间隔 2s）。/recommend/songs
+ * 冷启动时后端可能还没就绪（或首次启动正在初始化）：失败后自动重试 3 次（间隔 1s）。/recommend/songs
  * 需要登录态，未登录时该板块直接不显示，不影响其他板块。
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -144,9 +144,9 @@ fun HomeScreen(
     LaunchedEffect(retryKey) {
         loading = true
         error = null
-        // 冷启动重试：Node 启动需要 2~5 秒，最多重试 5 次
+        // 冷启动重试：后端毫秒级就绪，这里只兜底首次启动时的初始化和偶发的网络抖动，最多试 3 次
         var attempt = 0
-        while (attempt < 5) {
+        while (attempt < 3) {
             try {
                 val (b, p) =
                     withContext(Dispatchers.IO) {
@@ -167,18 +167,18 @@ fun HomeScreen(
                 throw e
             } catch (e: Exception) {
                 attempt++
-                if (attempt >= 5) {
+                if (attempt >= 3) {
                     error = e.message ?: "加载失败"
                     loading = false
                     return@LaunchedEffect
                 }
-                delay(2000)
+                delay(1000)
             }
         }
     }
 
     when {
-        // 首页冷启动可能超过 5s（后端启动 + 重试）→ 加载指示器盖在内容上，用带容器变体提供对比
+        // 首页首次加载要等网络返回，可能超过几秒 → 加载指示器盖在内容上，用带容器变体提供对比
         loading -> Centered(modifier) { ContainedLoadingIndicator() }
         error != null ->
             Centered(modifier) {

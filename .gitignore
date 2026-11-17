@@ -17,8 +17,6 @@ local.properties
 # 本地文档，不纳入版本控制
 /docs/
 
-# PC 预验临时目录（node 运行生成的 token）
-/app/src/main/assets/tmp/
 # Android Studio 个人配置
 /.idea/
 
